@@ -13,11 +13,6 @@ import (
 )
 
 type ResponseHintsParser struct {
-	logger logger.Logger
-}
-
-func NewResponseHintsParser() *ResponseHintsParser {
-	return &ResponseHintsParser{logger: logger.NewConsoleLogger()}
 }
 
 func (rhp *ResponseHintsParser) ParseResponseHints(req *http.Request) *models.ResponseHints {
@@ -190,7 +185,7 @@ func (rhp *ResponseHintsParser) mergeHints(hintsFromQueryParams, hintsFromHeader
 
 	// if body is empty but content type is not, then we should reset the content type
 	if len(result.Body) == 0 && result.ContentType != "" {
-		rhp.logger.Warn("response hints: body is empty but content type is not - ignoring content type")
+		logger.Warn("response hints: body is empty but content type is not - ignoring content type")
 		result.ContentType = ""
 	}
 

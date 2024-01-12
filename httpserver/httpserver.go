@@ -4,43 +4,53 @@ import (
 	"context"
 	"errors"
 	"github.com/n0rdy/proteus/httpserver/api"
+	"github.com/n0rdy/proteus/httpserver/service/endpoints"
 	"github.com/n0rdy/proteus/httpserver/service/logger"
+	"github.com/n0rdy/proteus/httpserver/service/smart"
 	"net/http"
 	"strconv"
 )
 
 func Start(port int) {
+	endpointService, err := endpoints.NewService()
+	if err != nil {
+		logger.Error("failed to create endpoints service", err)
+		return
+	}
+	defer endpointService.Close()
+
+	smartService := smart.NewService()
 	portAsString := strconv.Itoa(port)
-	log := logger.NewConsoleLogger()
 	shutdownCh := make(chan struct{})
 	restartCh := make(chan struct{})
 
-	proteusRouter := api.NewProteusRouter(log, shutdownCh, restartCh)
+	proteusRouter := api.NewProteusRouter(smartService, endpointService, shutdownCh, restartCh)
 	httpRouter := proteusRouter.NewRouter()
 
-	log.Info("http: starting server at port " + portAsString)
+	logger.Info("http: starting server at port " + portAsString)
 
 	server := &http.Server{Addr: "localhost:" + portAsString, Handler: httpRouter}
 	go func() {
-		err := server.ListenAndServe()
+		err = server.ListenAndServe()
 		if err != nil {
 			close(shutdownCh)
 			close(restartCh)
 			if errors.Is(err, http.ErrServerClosed) {
-				log.Info("server shutdown")
+				logger.Info("server shutdown")
 			} else {
-				log.Error("server failed", err)
+				logger.Error("server failed", err)
 			}
 		}
 	}()
 
 	select {
 	case <-shutdownCh:
-		log.Info("server shutdown requested")
+		logger.Info("server shutdown requested")
 		shutdownServer(server)
 	case <-restartCh:
-		log.Info("server restart requested")
+		logger.Info("server restart requested")
 		shutdownServer(server)
+		endpointService.Close()
 		Start(port)
 	}
 }

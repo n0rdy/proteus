@@ -51,10 +51,22 @@ func (db *InMemorySmartDb) Update(domainPath string, id SmartId, reqBody map[str
 	return ok
 }
 
-func (db *InMemorySmartDb) Delete(domainPath string, id SmartId) bool {
+func (db *InMemorySmartDb) DeleteById(domainPath string, id SmartId) bool {
 	_, ok := db.data[domainPath][id]
 	if ok {
 		delete(db.data[domainPath], id)
 	}
 	return ok
+}
+
+func (db *InMemorySmartDb) Delete(domainPath string) bool {
+	_, ok := db.data[domainPath]
+	if ok {
+		delete(db.data, domainPath)
+	}
+	return ok
+}
+
+func (db *InMemorySmartDb) Clear() {
+	db.data = make(map[string]map[SmartId]map[string]interface{})
 }

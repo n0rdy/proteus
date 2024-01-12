@@ -6,25 +6,25 @@ import (
 	"strings"
 )
 
-type SmartService struct {
+type Service struct {
 	db *db.InMemorySmartDb
 }
 
-func NewSmartService() *SmartService {
-	return &SmartService{
+func NewService() *Service {
+	return &Service{
 		db: db.NewInMemoryDB(),
 	}
 }
 
-func (ss *SmartService) Get(domainPath string) (result interface{}, withId bool) {
-	res := ss.db.Select(domainPath)
+func (s *Service) Get(domainPath string) (result interface{}, withId bool) {
+	res := s.db.Select(domainPath)
 	if res == nil || len(res) == 0 {
-		idFromPath := ss.parseIdFromPath(domainPath)
+		idFromPath := s.parseIdFromPath(domainPath)
 		if idFromPath == "" {
 			return nil, false
 		}
 		domainPathWithoutId := strings.TrimSuffix(domainPath, "/"+string(idFromPath))
-		resById := ss.db.SelectById(domainPathWithoutId, idFromPath)
+		resById := s.db.SelectById(domainPathWithoutId, idFromPath)
 		if resById == nil || len(res) == 0 {
 			return nil, true
 		}
@@ -33,29 +33,33 @@ func (ss *SmartService) Get(domainPath string) (result interface{}, withId bool)
 	return res, false
 }
 
-func (ss *SmartService) Create(domainPath string, reqBody map[string]interface{}) db.SmartId {
-	return ss.db.Insert(domainPath, reqBody)
+func (s *Service) Create(domainPath string, reqBody map[string]interface{}) db.SmartId {
+	return s.db.Insert(domainPath, reqBody)
 }
 
-func (ss *SmartService) Update(domainPath string, reqBody map[string]interface{}) bool {
-	idFromPath := ss.parseIdFromPath(domainPath)
+func (s *Service) Update(domainPath string, reqBody map[string]interface{}) bool {
+	idFromPath := s.parseIdFromPath(domainPath)
 	if idFromPath == "" {
 		return false
 	}
 	domainPathWithoutId := strings.TrimSuffix(domainPath, "/"+string(idFromPath))
-	return ss.db.Update(domainPathWithoutId, idFromPath, reqBody)
+	return s.db.Update(domainPathWithoutId, idFromPath, reqBody)
 }
 
-func (ss *SmartService) Delete(domainPath string) bool {
-	idFromPath := ss.parseIdFromPath(domainPath)
+func (s *Service) Delete(domainPath string) bool {
+	idFromPath := s.parseIdFromPath(domainPath)
 	if idFromPath == "" {
-		return false
+		return s.db.Delete(domainPath)
 	}
 	domainPathWithoutId := strings.TrimSuffix(domainPath, "/"+string(idFromPath))
-	return ss.db.Delete(domainPathWithoutId, idFromPath)
+	return s.db.DeleteById(domainPathWithoutId, idFromPath)
 }
 
-func (ss *SmartService) parseIdFromPath(domainPath string) db.SmartId {
+func (s *Service) Clear() {
+	s.db.Clear()
+}
+
+func (s *Service) parseIdFromPath(domainPath string) db.SmartId {
 	paths := strings.Split(domainPath, "/")
 	if len(paths) < 3 {
 		// 3 stands for: empty string, "domain", "id": e.g. "/books/123" -> ["", "books", "123"]

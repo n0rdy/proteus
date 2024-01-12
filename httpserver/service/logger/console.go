@@ -5,36 +5,36 @@ import (
 	"time"
 )
 
-func NewConsoleLogger() Logger {
-	return &ConsoleLogger{}
+const (
+	infoLogLevelPrefix  = " [INFO] "
+	debugLogLevelPrefix = " [DEBUG] "
+	traceLogLevelPrefix = " [TRACE] "
+	errorLogLevelPrefix = " [ERROR] "
+	warnLogLevelPrefix  = " [WARN] "
+
+	dateTimeFormatWithoutTimeZone = "2006-01-02 15:04:05:000"
+)
+
+func Info(message string) {
+	fmt.Println(timeNow() + infoLogLevelPrefix + message)
 }
 
-type ConsoleLogger struct{}
-
-func (cl *ConsoleLogger) Info(message string) {
-	fmt.Println(cl.timeNow() + infoLogLevelPrefix + message)
+func Debug(message string) {
+	fmt.Println(timeNow() + debugLogLevelPrefix + message)
 }
 
-func (cl *ConsoleLogger) Debug(message string) {
-	fmt.Println(cl.timeNow() + debugLogLevelPrefix + message)
+func Trace(message string) {
+	fmt.Println(timeNow() + traceLogLevelPrefix + message)
 }
 
-func (cl *ConsoleLogger) Trace(message string) {
-	fmt.Println(cl.timeNow() + traceLogLevelPrefix + message)
+func Error(message string, err ...error) {
+	fmt.Println(timeNow()+errorLogLevelPrefix+message, err)
 }
 
-func (cl *ConsoleLogger) Error(message string, err ...error) {
-	fmt.Println(cl.timeNow()+errorLogLevelPrefix+message, err)
+func Warn(message string) {
+	fmt.Println(timeNow() + warnLogLevelPrefix + message)
 }
 
-func (cl *ConsoleLogger) Warn(message string) {
-	fmt.Println(cl.timeNow() + warnLogLevelPrefix + message)
-}
-
-func (cl *ConsoleLogger) Close() error {
-	return nil
-}
-
-func (cl *ConsoleLogger) timeNow() string {
+func timeNow() string {
 	return time.Now().Format(dateTimeFormatWithoutTimeZone)
 }
