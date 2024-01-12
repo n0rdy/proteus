@@ -1,8 +1,8 @@
 package db
 
 import (
+	"github.com/n0rdy/proteus/httpserver/logger"
 	"github.com/n0rdy/proteus/httpserver/models"
-	"github.com/n0rdy/proteus/httpserver/service/logger"
 	"github.com/n0rdy/proteus/httpserver/utils"
 	bolt "go.etcd.io/bbolt"
 	"strings"
