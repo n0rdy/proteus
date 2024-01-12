@@ -40,6 +40,8 @@ func NewProteusRouter(smartService *smart.Service, endpointService *endpoints.Se
 func (pr *ProteusRouter) NewRouter() *chi.Mux {
 	router := chi.NewRouter()
 
+	// TODO: add HTML page with admin UI
+
 	router.Route("/api/v1/proteus", func(r chi.Router) {
 		r.Route("/http/statuses", func(r chi.Router) {
 			r.HandleFunc("/{status}", pr.handleStatuses)
@@ -70,8 +72,6 @@ func (pr *ProteusRouter) NewRouter() *chi.Mux {
 
 	pr.registerCustomRestEndpoints(router)
 
-	// TODO: add HTML page with admin UI
-
 	router.Get("/healthcheck", pr.healthCheck)
 
 	router.HandleFunc("/*", pr.handleAnyReq)
@@ -99,7 +99,11 @@ func (pr *ProteusRouter) handleStatuses(w http.ResponseWriter, req *http.Request
 }
 
 func (pr *ProteusRouter) clearSmart(w http.ResponseWriter, req *http.Request) {
-	pr.smartService.Clear()
+	err := pr.smartService.Clear()
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		return
+	}
 	pr.sendNoContentResponse(w)
 }
 
@@ -384,7 +388,11 @@ func (pr *ProteusRouter) handleAnyReq(w http.ResponseWriter, req *http.Request) 
 }
 
 func (pr *ProteusRouter) handleSmartGetRequest(w http.ResponseWriter, domainPath string) {
-	respBody, withId := pr.smartService.Get(domainPath)
+	respBody, withId, err := pr.smartService.Get(domainPath)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		return
+	}
 	if respBody == nil {
 		// `withId` means that all the entities are requested, thus, if nothing is found, we return an empty array
 		// if `withId` is false, then we return 404, as the requested entity is not found
@@ -404,7 +412,11 @@ func (pr *ProteusRouter) handleSmartCreateRequest(w http.ResponseWriter, domainP
 		return
 	}
 
-	id := pr.smartService.Create(domainPath, reqBodyAsMap)
+	id, err := pr.smartService.Create(domainPath, reqBodyAsMap)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		return
+	}
 	pr.sendJsonResponse(w, http.StatusCreated, models.SmartCreatedResponse{Id: string(id)})
 }
 
@@ -414,7 +426,11 @@ func (pr *ProteusRouter) handleSmartUpdateRequest(w http.ResponseWriter, domainP
 		return
 	}
 
-	found := pr.smartService.Update(domainPath, reqBodyAsMap)
+	found, err := pr.smartService.Update(domainPath, reqBodyAsMap)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		return
+	}
 	if !found {
 		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundSmartPath, domainPath), common.ErrorCodeNotFoundSmartPath)
 		return
@@ -423,7 +439,11 @@ func (pr *ProteusRouter) handleSmartUpdateRequest(w http.ResponseWriter, domainP
 }
 
 func (pr *ProteusRouter) handleSmartDeleteRequest(w http.ResponseWriter, domainPath string) {
-	found := pr.smartService.Delete(domainPath)
+	found, err := pr.smartService.Delete(domainPath)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		return
+	}
 	if !found {
 		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundSmartPath, domainPath), common.ErrorCodeNotFoundSmartPath)
 		return

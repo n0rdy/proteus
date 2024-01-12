@@ -13,7 +13,7 @@ var startCmd = &cobra.Command{
 	Short: "Start the proteus app",
 	Long:  `Start the proteus app.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := os.MkdirAll(utils.GetOsSpecificAppDataDir(), os.ModePerm)
+		err := os.MkdirAll(utils.GetOsSpeificDbDir(), os.ModePerm)
 		if err != nil {
 			return err
 		}

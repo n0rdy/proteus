@@ -7,8 +7,12 @@ import (
 	"strings"
 )
 
+func GetOsSpeificDbDir() string {
+	return getOsSpecificAppDataDir() + "db" + string(os.PathSeparator)
+}
+
 // based on this answer: https://stackoverflow.com/a/68740581
-func GetOsSpecificAppDataDir() string {
+func getOsSpecificAppDataDir() string {
 	osType := DetectOsType()
 	switch osType {
 	case common.MacOS:

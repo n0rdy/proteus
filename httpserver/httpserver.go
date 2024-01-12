@@ -19,7 +19,13 @@ func Start(port int) {
 	}
 	defer endpointService.Close()
 
-	smartService := smart.NewService()
+	smartService, err := smart.NewService()
+	if err != nil {
+		logger.Error("failed to create smart service", err)
+		return
+	}
+	defer smartService.Close()
+
 	portAsString := strconv.Itoa(port)
 	shutdownCh := make(chan struct{})
 	restartCh := make(chan struct{})
@@ -51,6 +57,7 @@ func Start(port int) {
 		logger.Info("server restart requested")
 		shutdownServer(server)
 		endpointService.Close()
+		smartService.Close()
 		Start(port)
 	}
 }

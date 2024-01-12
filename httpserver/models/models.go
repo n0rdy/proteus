@@ -61,6 +61,10 @@ type EndpointResponse struct {
 
 // other models:
 
+type SmartInstance struct {
+	Data map[string]map[string]interface{}
+}
+
 type ResponseHints struct {
 	StatusCode       int
 	Body             []byte

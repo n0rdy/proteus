@@ -18,8 +18,8 @@ type EndpointsDb struct {
 	db *bolt.DB
 }
 
-func NewBoltDb() (*EndpointsDb, error) {
-	boltDb, err := bolt.Open(utils.GetOsSpecificAppDataDir()+"proteus_endpoints.db", 0600, nil)
+func NewEndpointsDb() (*EndpointsDb, error) {
+	boltDb, err := bolt.Open(utils.GetOsSpeificDbDir()+"proteus_endpoints.db", 0600, nil)
 	if err != nil {
 		return nil, err
 	}

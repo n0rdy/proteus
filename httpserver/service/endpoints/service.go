@@ -10,7 +10,7 @@ type Service struct {
 }
 
 func NewService() (*Service, error) {
-	boltDb, err := db.NewBoltDb()
+	boltDb, err := db.NewEndpointsDb()
 	if err != nil {
 		return nil, err
 	}
