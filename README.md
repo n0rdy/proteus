@@ -6,7 +6,8 @@ Proteus is a mock API server. I built this tool to cover these 2 use cases:
 
 Before Proteus, I had to:
 - either mock the API responses manually via the JSON files
-- use Wiremock and write some code to make it work.
+- use Wiremock and write some code to make it work
+- create a mock API server from scratch for my specific use case.
 
 Both of these approaches are not ideal, as JSON files are not flexible enough and Wiremock approach is time-consuming. 
 The idea behind Proteus is to simplify this and cover the most common use cases.
