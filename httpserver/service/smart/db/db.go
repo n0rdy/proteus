@@ -36,7 +36,6 @@ func NewSmartDb() (*SmartDb, error) {
 		return nil
 	})
 	if err != nil {
-		logger.Error("error on creating BoltDB bucket: "+smartRestBucket, err)
 		return nil, err
 	}
 

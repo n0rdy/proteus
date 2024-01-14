@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"regexp"
+	"time"
+)
 
 // requests models:
 
@@ -33,6 +36,16 @@ type RestEndpointCookie struct {
 	Value string `json:"value,omitempty"`
 }
 
+type BasicAuthCredentialsInstance struct {
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+}
+
+type ApiKeyAuthCredentialsInstance struct {
+	KeyName  string `json:"keyName,omitempty"`
+	KeyValue string `json:"keyValue,omitempty"`
+}
+
 // responses models:
 
 type DefaultResponse struct {
@@ -42,6 +55,10 @@ type DefaultResponse struct {
 type ErrorResponse struct {
 	Message string `json:"message,omitempty"`
 	Code    string `json:"code,omitempty"`
+}
+
+type ProtectedResourceResponse struct {
+	Message string `json:"message,omitempty"`
 }
 
 type SmartCreatedResponse struct {
@@ -65,10 +82,21 @@ type SmartInstance struct {
 	Data map[string]map[string]interface{}
 }
 
-type ResponseHints struct {
+type ProteusHints struct {
 	StatusCode       int
 	Body             []byte
 	ContentType      string
 	RedirectLocation string
 	Wait             time.Duration
+	ApiKey           *ProteusHintsApiKeyAuth
+}
+
+type ProteusHintsApiKeyAuth struct {
+	KeyName string
+	// accepts values: "header", "query". Header is default.
+	Location string
+	// accepts values: "plain", "base64". Plain is default.
+	ValueFormat string
+	// used if the key value goes with some prefix, e.g. "ApiKey "
+	ValueParserRegexp *regexp.Regexp
 }

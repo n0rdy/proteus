@@ -33,7 +33,6 @@ func NewEndpointsDb() (*EndpointsDb, error) {
 		return nil
 	})
 	if err != nil {
-		logger.Error("error on creating BoltDB bucket: "+restBucket, err)
 		return nil, err
 	}
 

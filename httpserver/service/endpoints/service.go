@@ -1,8 +1,10 @@
 package endpoints
 
 import (
+	"github.com/n0rdy/proteus/httpserver/common"
 	"github.com/n0rdy/proteus/httpserver/models"
 	"github.com/n0rdy/proteus/httpserver/service/endpoints/db"
+	"strings"
 )
 
 type Service struct {
@@ -30,6 +32,9 @@ func (s *Service) GetRestEndpoint(method string, path string) (*models.RestEndpo
 }
 
 func (s *Service) AddRestEndpoint(endpoint models.RestEndpoint) error {
+	if s.isReservedPath(endpoint.Path) {
+		return common.ErrReservedPath
+	}
 	return s.edb.InsertOneRest(endpoint)
 }
 
@@ -57,4 +62,8 @@ func (s *Service) UpdateRestEndpoint(method string, path string, endpoint models
 		return false, nil
 	}
 	return true, s.edb.InsertOneRest(endpoint)
+}
+
+func (s *Service) isReservedPath(path string) bool {
+	return strings.HasPrefix(path, common.ProteusReservedApiPath) || strings.HasPrefix(path, common.ProteusHealthcheckPath)
 }

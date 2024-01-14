@@ -5,6 +5,9 @@ import (
 	"errors"
 	"github.com/n0rdy/proteus/httpserver/api"
 	"github.com/n0rdy/proteus/httpserver/logger"
+	"github.com/n0rdy/proteus/httpserver/service/auth/apikey"
+	"github.com/n0rdy/proteus/httpserver/service/auth/basic"
+	"github.com/n0rdy/proteus/httpserver/service/auth/db"
 	"github.com/n0rdy/proteus/httpserver/service/endpoints"
 	"github.com/n0rdy/proteus/httpserver/service/smart"
 	"net/http"
@@ -12,6 +15,16 @@ import (
 )
 
 func Start(port int) {
+	authDb, err := db.NewAuthDb()
+	if err != nil {
+		logger.Error("failed to create auth db", err)
+		return
+	}
+	defer authDb.Close()
+
+	basicAuthService := basic.NewService(authDb)
+	apiKeyAuthService := apikey.NewService(authDb)
+
 	endpointService, err := endpoints.NewService()
 	if err != nil {
 		logger.Error("failed to create endpoints service", err)
@@ -30,7 +43,7 @@ func Start(port int) {
 	shutdownCh := make(chan struct{})
 	restartCh := make(chan struct{})
 
-	proteusRouter := api.NewProteusRouter(smartService, endpointService, shutdownCh, restartCh)
+	proteusRouter := api.NewProteusRouter(basicAuthService, apiKeyAuthService, smartService, endpointService, shutdownCh, restartCh)
 	httpRouter := proteusRouter.NewRouter()
 
 	logger.Info("http: starting server at port " + portAsString)
@@ -58,6 +71,7 @@ func Start(port int) {
 		shutdownServer(server)
 		endpointService.Close()
 		smartService.Close()
+		authDb.Close()
 		Start(port)
 	}
 }

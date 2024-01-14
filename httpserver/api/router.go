@@ -9,6 +9,8 @@ import (
 	"github.com/n0rdy/proteus/httpserver/common"
 	"github.com/n0rdy/proteus/httpserver/logger"
 	"github.com/n0rdy/proteus/httpserver/models"
+	"github.com/n0rdy/proteus/httpserver/service/auth/apikey"
+	"github.com/n0rdy/proteus/httpserver/service/auth/basic"
 	"github.com/n0rdy/proteus/httpserver/service/endpoints"
 	"github.com/n0rdy/proteus/httpserver/service/hints"
 	"github.com/n0rdy/proteus/httpserver/service/smart"
@@ -20,20 +22,31 @@ import (
 )
 
 type ProteusRouter struct {
-	shutdownCh      chan struct{}
-	restartCh       chan struct{}
-	hintsParser     *hints.ResponseHintsParser
-	smartService    *smart.Service
-	endpointService *endpoints.Service
+	shutdownCh        chan struct{}
+	restartCh         chan struct{}
+	hintsParser       *hints.ProteusHintsParser
+	basicAuthService  *basic.Service
+	apiKeyAuthService *apikey.Service
+	smartService      *smart.Service
+	endpointService   *endpoints.Service
 }
 
-func NewProteusRouter(smartService *smart.Service, endpointService *endpoints.Service, shutdownCh chan struct{}, restartCh chan struct{}) *ProteusRouter {
+func NewProteusRouter(
+	basicAuthService *basic.Service,
+	apiKeyAuthService *apikey.Service,
+	smartService *smart.Service,
+	endpointService *endpoints.Service,
+	shutdownCh chan struct{},
+	restartCh chan struct{},
+) *ProteusRouter {
 	return &ProteusRouter{
-		shutdownCh:      shutdownCh,
-		restartCh:       restartCh,
-		hintsParser:     &hints.ResponseHintsParser{},
-		smartService:    smartService,
-		endpointService: endpointService,
+		shutdownCh:        shutdownCh,
+		restartCh:         restartCh,
+		hintsParser:       &hints.ProteusHintsParser{},
+		basicAuthService:  basicAuthService,
+		apiKeyAuthService: apiKeyAuthService,
+		smartService:      smartService,
+		endpointService:   endpointService,
 	}
 }
 
@@ -45,6 +58,18 @@ func (pr *ProteusRouter) NewRouter() *chi.Mux {
 	router.Route("/api/v1/proteus", func(r chi.Router) {
 		r.Route("/http/statuses", func(r chi.Router) {
 			r.HandleFunc("/{status}", pr.handleStatuses)
+		})
+
+		r.Route("/auth", func(r chi.Router) {
+			r.Route("/basic", func(r chi.Router) {
+				r.HandleFunc("/resource", pr.handleBasicAuthProtectedResourceReq)
+				r.HandleFunc("/resource/*", pr.handleBasicAuthProtectedResourceReq)
+			})
+
+			r.Route("/apikey", func(r chi.Router) {
+				r.HandleFunc("/resource", pr.handleApiKeyAuthProtectedResourceReq)
+				r.HandleFunc("/resource/*", pr.handleApiKeyAuthProtectedResourceReq)
+			})
 		})
 
 		r.Route("/smart", func(r chi.Router) {
@@ -63,6 +88,22 @@ func (pr *ProteusRouter) NewRouter() *chi.Mux {
 				r.Delete("/{method}/*", pr.deleteRestEndpoint)
 			})
 
+			r.Route("/auth/credentials/", func(r chi.Router) {
+				r.Route("/basic", func(r chi.Router) {
+					r.Get("/", pr.getAllBasicAuthCreds)
+					r.Post("/", pr.addBasicAuthCreds)
+					r.Delete("/", pr.deleteAllBasicAuthCreds)
+					r.Delete("/{username}", pr.deleteBasicAuthCreds)
+				})
+
+				r.Route("/apikey", func(r chi.Router) {
+					r.Get("/", pr.getAllApiKeyAuthCreds)
+					r.Post("/", pr.addApiKeyAuthCreds)
+					r.Delete("/", pr.deleteAllApiKeyAuthCreds)
+					r.Delete("/{keyName}", pr.deleteApiKeyAuthCreds)
+				})
+			})
+
 			r.Put("/restart", pr.restart)
 			r.Delete("/shutdown", pr.shutdown)
 		})
@@ -79,6 +120,52 @@ func (pr *ProteusRouter) NewRouter() *chi.Mux {
 	return router
 }
 
+func (pr *ProteusRouter) handleBasicAuthProtectedResourceReq(w http.ResponseWriter, req *http.Request) {
+	basicAuthHeader := req.Header.Get("Authorization")
+	if basicAuthHeader == "" {
+		pr.sendUnauthorizedResponse(w)
+		return
+	}
+
+	if !pr.basicAuthService.CheckCredentials(basicAuthHeader) {
+		pr.sendUnauthorizedResponse(w)
+		return
+	}
+
+	proteusHints := pr.hintsParser.ParseHints(req)
+	if proteusHints == nil {
+		pr.sendJsonResponse(w, http.StatusOK, models.ProtectedResourceResponse{Message: "Welcome: you are in"})
+	} else {
+		pr.sendResponseFromHints(w, proteusHints)
+	}
+}
+
+func (pr *ProteusRouter) handleApiKeyAuthProtectedResourceReq(w http.ResponseWriter, req *http.Request) {
+	proteusHints := pr.hintsParser.ParseHints(req)
+	if proteusHints == nil || proteusHints.ApiKey == nil {
+		logger.Error("handleApiKeyAuthProtectedResourceReq: no hints provided, that's why there is no way to fetch the API key")
+		pr.sendUnauthorizedResponse(w)
+		return
+	}
+
+	apiKeyCreds := pr.parseApiKeyCreds(req, *proteusHints)
+	if apiKeyCreds == nil {
+		pr.sendUnauthorizedResponse(w)
+		return
+	}
+
+	if !pr.apiKeyAuthService.CheckCredentials(*apiKeyCreds) {
+		pr.sendUnauthorizedResponse(w)
+		return
+	}
+
+	if proteusHints.StatusCode == 0 && proteusHints.Body == nil {
+		pr.sendJsonResponse(w, http.StatusOK, models.ProtectedResourceResponse{Message: "Welcome: you are in"})
+	} else {
+		pr.sendResponseFromHints(w, proteusHints)
+	}
+}
+
 func (pr *ProteusRouter) handleStatuses(w http.ResponseWriter, req *http.Request) {
 	statusCode, err := pr.getStatusCode(req)
 	if err != nil {
@@ -86,15 +173,15 @@ func (pr *ProteusRouter) handleStatuses(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	responseHints := pr.hintsParser.ParseResponseHints(req)
-	if responseHints == nil {
+	proteusHints := pr.hintsParser.ParseHints(req)
+	if proteusHints == nil {
 		respBody := forStatusCode(statusCode)
 		pr.enrichResponse(w, statusCode)
 		pr.sendJsonResponse(w, statusCode, respBody)
 	} else {
 		// status code is ignored from hints, as the purpose of this endpoint is to return the status code from the URL
-		responseHints.StatusCode = statusCode
-		pr.sendResponseFromHints(w, responseHints)
+		proteusHints.StatusCode = statusCode
+		pr.sendResponseFromHints(w, proteusHints)
 	}
 }
 
@@ -268,6 +355,96 @@ func (pr *ProteusRouter) deleteRestEndpoint(w http.ResponseWriter, req *http.Req
 	pr.restartCh <- struct{}{}
 }
 
+func (pr *ProteusRouter) getAllBasicAuthCreds(w http.ResponseWriter, req *http.Request) {
+	creds := pr.basicAuthService.GetAll()
+	pr.sendJsonResponse(w, http.StatusOK, creds)
+}
+
+func (pr *ProteusRouter) addBasicAuthCreds(w http.ResponseWriter, req *http.Request) {
+	var creds models.BasicAuthCredentialsInstance
+	err := json.NewDecoder(req.Body).Decode(&creds)
+	defer utils.CloseSafe(req.Body)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, common.ErrorInvalidRequestBody, common.ErrorCodeInvalidRequestBody)
+		return
+	}
+
+	err = pr.basicAuthService.Add(creds)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), common.ErrorCodeInvalidRequestBody)
+		return
+	}
+	pr.sendNoContentResponse(w)
+}
+
+func (pr *ProteusRouter) deleteAllBasicAuthCreds(w http.ResponseWriter, req *http.Request) {
+	err := pr.basicAuthService.DeleteAll()
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		return
+	}
+	pr.sendNoContentResponse(w)
+}
+
+func (pr *ProteusRouter) deleteBasicAuthCreds(w http.ResponseWriter, req *http.Request) {
+	username := chi.URLParam(req, "username")
+	found, err := pr.basicAuthService.Delete(username)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		return
+	}
+	if !found {
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundBasicAuthCreds, username), common.ErrorCodeNotFoundBasicAuthCreds)
+		return
+	}
+	pr.sendNoContentResponse(w)
+}
+
+func (pr *ProteusRouter) getAllApiKeyAuthCreds(w http.ResponseWriter, req *http.Request) {
+	creds := pr.apiKeyAuthService.GetAll()
+	pr.sendJsonResponse(w, http.StatusOK, creds)
+}
+
+func (pr *ProteusRouter) addApiKeyAuthCreds(w http.ResponseWriter, req *http.Request) {
+	var creds models.ApiKeyAuthCredentialsInstance
+	err := json.NewDecoder(req.Body).Decode(&creds)
+	defer utils.CloseSafe(req.Body)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, common.ErrorInvalidRequestBody, common.ErrorCodeInvalidRequestBody)
+		return
+	}
+
+	err = pr.apiKeyAuthService.Add(creds)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), common.ErrorCodeInvalidRequestBody)
+		return
+	}
+	pr.sendNoContentResponse(w)
+}
+
+func (pr *ProteusRouter) deleteAllApiKeyAuthCreds(w http.ResponseWriter, req *http.Request) {
+	err := pr.apiKeyAuthService.DeleteAll()
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		return
+	}
+	pr.sendNoContentResponse(w)
+}
+
+func (pr *ProteusRouter) deleteApiKeyAuthCreds(w http.ResponseWriter, req *http.Request) {
+	keyName := chi.URLParam(req, "keyName")
+	found, err := pr.apiKeyAuthService.Delete(keyName)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		return
+	}
+	if !found {
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundApiKeyAuthCreds, keyName), common.ErrorCodeNotFoundApiKeyAuthCreds)
+		return
+	}
+	pr.sendNoContentResponse(w)
+}
+
 func (pr *ProteusRouter) healthCheck(w http.ResponseWriter, req *http.Request) {
 	pr.sendJsonResponse(w, http.StatusOK, healthOk)
 }
@@ -329,11 +506,11 @@ func (pr *ProteusRouter) registerCustomRestEndpoints(router *chi.Mux) {
 
 func (pr *ProteusRouter) handleCustomRestEndpoint(endpoint models.RestEndpoint) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		responseHints := pr.hintsParser.ParseResponseHints(req)
+		proteusHints := pr.hintsParser.ParseHints(req)
 		var responseCode int
-		if responseHints != nil {
+		if proteusHints != nil {
 			// only status code is taken from hints, as the other parts of the response are stored in the DB
-			responseCode = responseHints.StatusCode
+			responseCode = proteusHints.StatusCode
 		} else {
 			responseCode = endpoint.DefaultResponseStatusCode
 		}
@@ -379,11 +556,11 @@ func (pr *ProteusRouter) handleCustomRestEndpoint(endpoint models.RestEndpoint) 
 }
 
 func (pr *ProteusRouter) handleAnyReq(w http.ResponseWriter, req *http.Request) {
-	responseHints := pr.hintsParser.ParseResponseHints(req)
-	if responseHints == nil {
+	proteusHints := pr.hintsParser.ParseHints(req)
+	if proteusHints == nil {
 		pr.sendJsonResponse(w, http.StatusOK, _200OkResponse)
 	} else {
-		pr.sendResponseFromHints(w, responseHints)
+		pr.sendResponseFromHints(w, proteusHints)
 	}
 }
 
@@ -474,6 +651,49 @@ func (pr *ProteusRouter) sendMirrorResponse(w http.ResponseWriter, respBody []by
 	}
 }
 
+func (pr *ProteusRouter) parseApiKeyCreds(req *http.Request, proteusHints models.ProteusHints) *models.ApiKeyAuthCredentialsInstance {
+	apiKeyName := proteusHints.ApiKey.KeyName
+	apiKeyLocation := proteusHints.ApiKey.Location
+	if apiKeyLocation == "" {
+		apiKeyLocation = "header"
+	}
+
+	apiKey := ""
+	switch apiKeyLocation {
+	case "header":
+		apiKey = req.Header.Get(apiKeyName)
+	case "query":
+		apiKey = req.URL.Query().Get(apiKeyName)
+	}
+
+	if apiKey == "" {
+		logger.Error("parseApiKeyCreds: no API key provided")
+		return nil
+	}
+
+	if proteusHints.ApiKey.ValueFormat == "base64" {
+		decodedString, err := base64.StdEncoding.DecodeString(apiKey)
+		if err != nil {
+			logger.Error("parseApiKeyCreds: failed to decode base64 string from the provided API key", err)
+			return nil
+		}
+		apiKey = string(decodedString)
+	}
+
+	if proteusHints.ApiKey.ValueParserRegexp != nil {
+		match := proteusHints.ApiKey.ValueParserRegexp.FindStringSubmatch(apiKey)
+		if len(match) == 0 {
+			logger.Error("parseApiKeyCreds: failed to parse API key with the provided regexp")
+			return nil
+		}
+		apiKey = match[1]
+	}
+	return &models.ApiKeyAuthCredentialsInstance{
+		KeyName:  apiKeyName,
+		KeyValue: apiKey,
+	}
+}
+
 func (pr *ProteusRouter) getStatusCode(req *http.Request) (int, error) {
 	statusCode := chi.URLParam(req, "status")
 	if statusCode == "" {
@@ -506,7 +726,7 @@ func (pr *ProteusRouter) sendJsonResponse(w http.ResponseWriter, httpCode int, p
 	w.Write(respBody)
 }
 
-func (pr *ProteusRouter) sendResponseFromHints(w http.ResponseWriter, hints *models.ResponseHints) {
+func (pr *ProteusRouter) sendResponseFromHints(w http.ResponseWriter, hints *models.ProteusHints) {
 	if hints.Wait > 0 {
 		time.Sleep(hints.Wait)
 	}
@@ -546,6 +766,10 @@ func (pr *ProteusRouter) sendResponseFromString(w http.ResponseWriter, httpCode 
 	if respBody != "" {
 		w.Write([]byte(respBody))
 	}
+}
+
+func (pr *ProteusRouter) sendUnauthorizedResponse(w http.ResponseWriter) {
+	pr.sendJsonResponse(w, http.StatusUnauthorized, forStatusCode(http.StatusUnauthorized))
 }
 
 func (pr *ProteusRouter) sendJsonErrorResponse(w http.ResponseWriter, httpCode int, message string, errorCode string) {
