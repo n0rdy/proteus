@@ -52,6 +52,7 @@ func NewProteusRouter(
 
 func (pr *ProteusRouter) NewRouter() *chi.Mux {
 	router := chi.NewRouter()
+	router.Use(Logger)
 
 	// TODO: add HTML page with admin UI
 

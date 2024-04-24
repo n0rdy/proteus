@@ -12,7 +12,7 @@ const (
 	errorLogLevelPrefix = " [ERROR] "
 	warnLogLevelPrefix  = " [WARN] "
 
-	dateTimeFormatWithoutTimeZone = "2006-01-02 15:04:05:000"
+	dateTimeFormatWithoutTimeZone = "2006-01-02 15:04:05.000"
 )
 
 func Info(message string) {
