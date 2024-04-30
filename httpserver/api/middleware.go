@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/n0rdy/proteus/httpserver/logger"
 	"io"
 	"net/http"
@@ -14,22 +15,25 @@ func Logger(next http.Handler) http.Handler {
 		// reassign the body because it has been read:
 		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
+		requestId := r.Header.Get("X-Request-Id")
+		if requestId == "" {
+			requestId = uuid.New().String()
+		}
+
 		lrw := &logResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
-		logger.Debug(
-			"\n>>> Request received: " + r.Method + " " + r.URL.Path + "\n" +
-				">>>>>> Body: " + string(body) + "\n" +
-				">>>>>> Headers: " + fmt.Sprintf("%v", r.Header) + "\n" +
-				">>>>>> Query Params: " + fmt.Sprintf("%v", r.URL.Query()) + "\n" +
-				">>>>>> Cookies: " + fmt.Sprintf("%v", r.Cookies()),
+		logger.Debug("[" + requestId + "] Request received: " + r.Method + " " + r.URL.Path + "\n" +
+			">>>>>> Body: " + string(body) + "\n" +
+			">>>>>> Headers: " + fmt.Sprintf("%v", r.Header) + "\n" +
+			">>>>>> Query Params: " + fmt.Sprintf("%v", r.URL.Query()) + "\n" +
+			">>>>>> Cookies: " + fmt.Sprintf("%v", r.Cookies()),
 		)
 
 		next.ServeHTTP(lrw, r)
 
-		logger.Debug(
-			"\n<<< Response sent: " + fmt.Sprintf("%d\n", lrw.statusCode) +
-				"<<<<<< Body: " + lrw.body.String() + "\n" +
-				"<<<<<< Headers: " + fmt.Sprintf("%v", lrw.Header()),
+		logger.Debug("[" + requestId + "] Response sent: " + fmt.Sprintf("%d\n", lrw.statusCode) +
+			"<<<<<< Body: " + lrw.body.String() + "\n" +
+			"<<<<<< Headers: " + fmt.Sprintf("%v", lrw.Header()),
 		)
 	})
 }
