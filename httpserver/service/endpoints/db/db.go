@@ -1,9 +1,10 @@
 package db
 
 import (
-	"github.com/n0rdy/proteus/httpserver/logger"
 	"github.com/n0rdy/proteus/httpserver/models"
 	"github.com/n0rdy/proteus/httpserver/utils"
+	"github.com/n0rdy/proteus/logger"
+	commonUtils "github.com/n0rdy/proteus/utils"
 	bolt "go.etcd.io/bbolt"
 	"strings"
 )
@@ -19,7 +20,7 @@ type EndpointsDb struct {
 }
 
 func NewEndpointsDb() (*EndpointsDb, error) {
-	boltDb, err := bolt.Open(utils.GetOsSpeificDbDir()+"proteus_endpoints.db", 0600, nil)
+	boltDb, err := bolt.Open(commonUtils.GetOsSpecificDbDir()+"proteus_endpoints.db", 0600, nil)
 	if err != nil {
 		return nil, err
 	}

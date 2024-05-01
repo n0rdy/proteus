@@ -3,9 +3,9 @@ package hints
 import (
 	"encoding/base64"
 	"github.com/n0rdy/proteus/httpserver/common"
-	"github.com/n0rdy/proteus/httpserver/logger"
 	"github.com/n0rdy/proteus/httpserver/models"
 	"github.com/n0rdy/proteus/httpserver/utils"
+	"github.com/n0rdy/proteus/logger"
 	"net/http"
 	"net/url"
 	"regexp"

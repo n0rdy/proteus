@@ -1,9 +1,9 @@
 package apikey
 
 import (
-	"github.com/n0rdy/proteus/httpserver/logger"
 	"github.com/n0rdy/proteus/httpserver/models"
 	"github.com/n0rdy/proteus/httpserver/service/auth/db"
+	"github.com/n0rdy/proteus/logger"
 )
 
 type Service struct {

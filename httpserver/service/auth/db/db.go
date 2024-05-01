@@ -1,9 +1,9 @@
 package db
 
 import (
-	"github.com/n0rdy/proteus/httpserver/logger"
 	"github.com/n0rdy/proteus/httpserver/models"
-	"github.com/n0rdy/proteus/httpserver/utils"
+	"github.com/n0rdy/proteus/logger"
+	"github.com/n0rdy/proteus/utils"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -20,7 +20,7 @@ type AuthDb struct {
 }
 
 func NewAuthDb() (*AuthDb, error) {
-	boltDb, err := bolt.Open(utils.GetOsSpeificDbDir()+"proteus_auth.db", 0600, nil)
+	boltDb, err := bolt.Open(utils.GetOsSpecificDbDir()+"proteus_auth.db", 0600, nil)
 	if err != nil {
 		return nil, err
 	}

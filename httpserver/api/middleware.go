@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/n0rdy/proteus/httpserver/logger"
+	"github.com/n0rdy/proteus/logger"
 	"io"
 	"net/http"
 )

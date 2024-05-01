@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/n0rdy/proteus/httpserver/common"
-	"github.com/n0rdy/proteus/httpserver/logger"
 	"github.com/n0rdy/proteus/httpserver/models"
 	"github.com/n0rdy/proteus/httpserver/service/auth/apikey"
 	"github.com/n0rdy/proteus/httpserver/service/auth/basic"
@@ -15,6 +14,8 @@ import (
 	"github.com/n0rdy/proteus/httpserver/service/hints"
 	"github.com/n0rdy/proteus/httpserver/service/smart"
 	"github.com/n0rdy/proteus/httpserver/utils"
+	"github.com/n0rdy/proteus/logger"
+	"github.com/rs/cors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -52,6 +53,8 @@ func NewProteusRouter(
 
 func (pr *ProteusRouter) NewRouter() *chi.Mux {
 	router := chi.NewRouter()
+	// TODO: consider adding CORS configs to tune the allowed origins, methods, etc.
+	router.Use(cors.AllowAll().Handler)
 	router.Use(Logger)
 
 	// TODO: add HTML page with admin UI
@@ -484,6 +487,8 @@ func (pr *ProteusRouter) registerCustomRestEndpoints(router *chi.Mux) {
 	}
 
 	for _, restEndpoint := range customRestEndpoints {
+		logger.Debug("Registering custom REST endpoint: " + restEndpoint.Method + " " + restEndpoint.Path)
+
 		switch restEndpoint.Method {
 		case http.MethodGet:
 			router.Get(restEndpoint.Path, pr.handleCustomRestEndpoint(restEndpoint))

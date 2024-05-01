@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func GetOsSpeificDbDir() string {
+func GetOsSpecificDbDir() string {
 	return getOsSpecificAppDataDir() + "db" + string(os.PathSeparator)
 }
 

@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"github.com/n0rdy/proteus/httpserver/api"
-	"github.com/n0rdy/proteus/httpserver/logger"
 	"github.com/n0rdy/proteus/httpserver/service/auth/apikey"
 	"github.com/n0rdy/proteus/httpserver/service/auth/basic"
 	"github.com/n0rdy/proteus/httpserver/service/auth/db"
 	"github.com/n0rdy/proteus/httpserver/service/endpoints"
 	"github.com/n0rdy/proteus/httpserver/service/smart"
+	"github.com/n0rdy/proteus/logger"
 	"net/http"
 	"strconv"
 )

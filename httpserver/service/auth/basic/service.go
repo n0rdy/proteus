@@ -3,9 +3,9 @@ package basic
 import (
 	"encoding/base64"
 	"errors"
-	"github.com/n0rdy/proteus/httpserver/logger"
 	"github.com/n0rdy/proteus/httpserver/models"
 	"github.com/n0rdy/proteus/httpserver/service/auth/db"
+	"github.com/n0rdy/proteus/logger"
 	"strings"
 )
 
