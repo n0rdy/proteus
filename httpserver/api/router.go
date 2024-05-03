@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-chi/chi/v5"
-	"github.com/n0rdy/proteus/httpserver/common"
 	"github.com/n0rdy/proteus/httpserver/models"
 	"github.com/n0rdy/proteus/httpserver/service/auth/apikey"
 	"github.com/n0rdy/proteus/httpserver/service/auth/basic"
@@ -37,13 +36,14 @@ func NewProteusRouter(
 	apiKeyAuthService *apikey.Service,
 	smartService *smart.Service,
 	endpointService *endpoints.Service,
+	hintsParser *hints.ProteusHintsParser,
 	shutdownCh chan struct{},
 	restartCh chan struct{},
 ) *ProteusRouter {
 	return &ProteusRouter{
 		shutdownCh:        shutdownCh,
 		restartCh:         restartCh,
-		hintsParser:       &hints.ProteusHintsParser{},
+		hintsParser:       hintsParser,
 		basicAuthService:  basicAuthService,
 		apiKeyAuthService: apiKeyAuthService,
 		smartService:      smartService,
@@ -173,7 +173,7 @@ func (pr *ProteusRouter) handleApiKeyAuthProtectedResourceReq(w http.ResponseWri
 func (pr *ProteusRouter) handleStatuses(w http.ResponseWriter, req *http.Request) {
 	statusCode, err := pr.getStatusCode(req)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), common.ErrorCodeInvalidStatusCode)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidStatusCode)
 		return
 	}
 
@@ -192,7 +192,7 @@ func (pr *ProteusRouter) handleStatuses(w http.ResponseWriter, req *http.Request
 func (pr *ProteusRouter) clearSmart(w http.ResponseWriter, req *http.Request) {
 	err := pr.smartService.Clear()
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -200,18 +200,18 @@ func (pr *ProteusRouter) clearSmart(w http.ResponseWriter, req *http.Request) {
 
 func (pr *ProteusRouter) handleSmart(w http.ResponseWriter, req *http.Request) {
 	reqPath := req.URL.Path
-	domainPath, found := strings.CutPrefix(reqPath, common.SmartEndpointPath)
+	domainPath, found := strings.CutPrefix(reqPath, utils.SmartEndpointPath)
 	if !found {
-		domainPath, found = strings.CutPrefix(reqPath, common.SmartEndpointPathWithoutLeadingSlash)
+		domainPath, found = strings.CutPrefix(reqPath, utils.SmartEndpointPathWithoutLeadingSlash)
 		if !found {
 			// this should never happen
-			pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+			pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 			return
 		}
 	}
 
 	if domainPath == "" || domainPath == "/" {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorInvalidSmartRequestPath, reqPath), common.ErrorCodeInvalidSmartRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorInvalidSmartRequestPath, reqPath), utils.ErrorCodeInvalidSmartRequestPath)
 		return
 	}
 
@@ -221,7 +221,7 @@ func (pr *ProteusRouter) handleSmart(w http.ResponseWriter, req *http.Request) {
 		var err error
 		reqBodyAsMap, err = utils.RequestBodyAsMap(req.Body, req.Header.Get("Content-Type"))
 		if err != nil {
-			pr.sendJsonErrorResponse(w, http.StatusBadRequest, common.ErrorInvalidRequestBody, common.ErrorCodeInvalidRequestBody)
+			pr.sendJsonErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody)
 			return
 		}
 	}
@@ -236,14 +236,14 @@ func (pr *ProteusRouter) handleSmart(w http.ResponseWriter, req *http.Request) {
 	case http.MethodDelete:
 		pr.handleSmartDeleteRequest(w, domainPath)
 	default:
-		pr.sendJsonErrorResponse(w, http.StatusMethodNotAllowed, fmt.Sprintf(common.ErrorInvalidSmartRequestMethod, req.Method), common.ErrorCodeInvalidSmartRequestMethod)
+		pr.sendJsonErrorResponse(w, http.StatusMethodNotAllowed, fmt.Sprintf(utils.ErrorInvalidSmartRequestMethod, req.Method), utils.ErrorCodeInvalidSmartRequestMethod)
 	}
 }
 
 func (pr *ProteusRouter) getRestEndpoints(w http.ResponseWriter, req *http.Request) {
 	restEndpoints, err := pr.endpointService.GetAllRestEndpoints()
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	pr.sendJsonResponse(w, http.StatusOK, restEndpoints)
@@ -254,13 +254,13 @@ func (pr *ProteusRouter) addRestEndpoint(w http.ResponseWriter, req *http.Reques
 	err := json.NewDecoder(req.Body).Decode(&restEndpoint)
 	defer utils.CloseSafe(req.Body)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), common.ErrorCodeInvalidRequestBody)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidRequestBody)
 		return
 	}
 
 	err = pr.endpointService.AddRestEndpoint(restEndpoint)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), common.ErrorCodeInvalidRequestBody)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidRequestBody)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -271,7 +271,7 @@ func (pr *ProteusRouter) addRestEndpoint(w http.ResponseWriter, req *http.Reques
 func (pr *ProteusRouter) deleteAllRestEndpoints(w http.ResponseWriter, req *http.Request) {
 	err := pr.endpointService.DeleteAllRestEndpoints()
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -282,24 +282,24 @@ func (pr *ProteusRouter) deleteAllRestEndpoints(w http.ResponseWriter, req *http
 func (pr *ProteusRouter) getRestEndpoint(w http.ResponseWriter, req *http.Request) {
 	method := chi.URLParam(req, "method")
 	reqPath := req.URL.Path
-	endpointPath, found := strings.CutPrefix(reqPath, common.RestEndpointPath+"/"+method)
+	endpointPath, found := strings.CutPrefix(reqPath, utils.RestEndpointPath+"/"+method)
 	if !found {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, common.ErrorNotFound, common.ErrorCodeNotFound)
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, utils.ErrorNotFound, utils.ErrorCodeNotFound)
 		return
 	}
 
 	if method == "" || endpointPath == "" {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, common.ErrorInvalidRestEndpointPath, common.ErrorCodeInvalidRestEndpointPath)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRestEndpointPath, utils.ErrorCodeInvalidRestEndpointPath)
 		return
 	}
 
 	restEndpoint, err := pr.endpointService.GetRestEndpoint(method, endpointPath)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	if restEndpoint == nil {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundRestEndpoint, method+endpointPath), common.ErrorCodeNotFoundRestEndpointPath)
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundRestEndpoint, method+endpointPath), utils.ErrorCodeNotFoundRestEndpointPath)
 		return
 	}
 	pr.sendJsonResponse(w, http.StatusOK, restEndpoint)
@@ -308,9 +308,9 @@ func (pr *ProteusRouter) getRestEndpoint(w http.ResponseWriter, req *http.Reques
 func (pr *ProteusRouter) changeRestEndpoint(w http.ResponseWriter, req *http.Request) {
 	method := chi.URLParam(req, "method")
 	reqPath := req.URL.Path
-	endpointPath, found := strings.CutPrefix(reqPath, common.RestEndpointPath+"/"+method)
+	endpointPath, found := strings.CutPrefix(reqPath, utils.RestEndpointPath+"/"+method)
 	if !found {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, common.ErrorNotFound, common.ErrorCodeNotFound)
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, utils.ErrorNotFound, utils.ErrorCodeNotFound)
 		return
 	}
 
@@ -318,17 +318,17 @@ func (pr *ProteusRouter) changeRestEndpoint(w http.ResponseWriter, req *http.Req
 	err := json.NewDecoder(req.Body).Decode(&restEndpoint)
 	defer utils.CloseSafe(req.Body)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), common.ErrorCodeInvalidRequestBody)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidRequestBody)
 		return
 	}
 
 	found, err = pr.endpointService.UpdateRestEndpoint(method, endpointPath, restEndpoint)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	if !found {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundRestEndpoint, method+endpointPath), common.ErrorCodeNotFoundRestEndpointPath)
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundRestEndpoint, method+endpointPath), utils.ErrorCodeNotFoundRestEndpointPath)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -339,19 +339,19 @@ func (pr *ProteusRouter) changeRestEndpoint(w http.ResponseWriter, req *http.Req
 func (pr *ProteusRouter) deleteRestEndpoint(w http.ResponseWriter, req *http.Request) {
 	method := chi.URLParam(req, "method")
 	reqPath := req.URL.Path
-	endpointPath, found := strings.CutPrefix(reqPath, common.RestEndpointPath+"/"+method)
+	endpointPath, found := strings.CutPrefix(reqPath, utils.RestEndpointPath+"/"+method)
 	if !found {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, common.ErrorNotFound, common.ErrorCodeNotFound)
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, utils.ErrorNotFound, utils.ErrorCodeNotFound)
 		return
 	}
 
 	found, err := pr.endpointService.DeleteRestEndpoint(method, endpointPath)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	if !found {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundRestEndpoint, method+endpointPath), common.ErrorCodeNotFoundRestEndpointPath)
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundRestEndpoint, method+endpointPath), utils.ErrorCodeNotFoundRestEndpointPath)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -369,13 +369,13 @@ func (pr *ProteusRouter) addBasicAuthCreds(w http.ResponseWriter, req *http.Requ
 	err := json.NewDecoder(req.Body).Decode(&creds)
 	defer utils.CloseSafe(req.Body)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, common.ErrorInvalidRequestBody, common.ErrorCodeInvalidRequestBody)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody)
 		return
 	}
 
 	err = pr.basicAuthService.Add(creds)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), common.ErrorCodeInvalidRequestBody)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidRequestBody)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -384,7 +384,7 @@ func (pr *ProteusRouter) addBasicAuthCreds(w http.ResponseWriter, req *http.Requ
 func (pr *ProteusRouter) deleteAllBasicAuthCreds(w http.ResponseWriter, req *http.Request) {
 	err := pr.basicAuthService.DeleteAll()
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -394,11 +394,11 @@ func (pr *ProteusRouter) deleteBasicAuthCreds(w http.ResponseWriter, req *http.R
 	username := chi.URLParam(req, "username")
 	found, err := pr.basicAuthService.Delete(username)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	if !found {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundBasicAuthCreds, username), common.ErrorCodeNotFoundBasicAuthCreds)
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundBasicAuthCreds, username), utils.ErrorCodeNotFoundBasicAuthCreds)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -414,13 +414,13 @@ func (pr *ProteusRouter) addApiKeyAuthCreds(w http.ResponseWriter, req *http.Req
 	err := json.NewDecoder(req.Body).Decode(&creds)
 	defer utils.CloseSafe(req.Body)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, common.ErrorInvalidRequestBody, common.ErrorCodeInvalidRequestBody)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody)
 		return
 	}
 
 	err = pr.apiKeyAuthService.Add(creds)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), common.ErrorCodeInvalidRequestBody)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidRequestBody)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -429,7 +429,7 @@ func (pr *ProteusRouter) addApiKeyAuthCreds(w http.ResponseWriter, req *http.Req
 func (pr *ProteusRouter) deleteAllApiKeyAuthCreds(w http.ResponseWriter, req *http.Request) {
 	err := pr.apiKeyAuthService.DeleteAll()
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -439,11 +439,11 @@ func (pr *ProteusRouter) deleteApiKeyAuthCreds(w http.ResponseWriter, req *http.
 	keyName := chi.URLParam(req, "keyName")
 	found, err := pr.apiKeyAuthService.Delete(keyName)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	if !found {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundApiKeyAuthCreds, keyName), common.ErrorCodeNotFoundApiKeyAuthCreds)
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundApiKeyAuthCreds, keyName), utils.ErrorCodeNotFoundApiKeyAuthCreds)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -467,7 +467,7 @@ func (pr *ProteusRouter) mirrorRequest(w http.ResponseWriter, req *http.Request)
 	respBodyAsBytes, err := utils.RequestBodyAsBytes(req.Body)
 	defer utils.CloseSafe(req.Body)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, common.ErrorInvalidRequestBody, common.ErrorCodeInvalidRequestBody)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody)
 		return
 	}
 
@@ -550,7 +550,7 @@ func (pr *ProteusRouter) handleCustomRestEndpoint(endpoint models.RestEndpoint) 
 				decodedString, err := base64.StdEncoding.DecodeString(resp.Body.AsBase64)
 				if err != nil {
 					logger.Error("handleCustomRestEndpoint: failed to decode base64 string from the stored [asBase64] field value", err)
-					pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+					pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 					return
 				}
 				respBodyAsString = string(decodedString)
@@ -573,14 +573,14 @@ func (pr *ProteusRouter) handleAnyReq(w http.ResponseWriter, req *http.Request) 
 func (pr *ProteusRouter) handleSmartGetRequest(w http.ResponseWriter, domainPath string) {
 	respBody, withId, err := pr.smartService.Get(domainPath)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	if respBody == nil {
 		// `withId` means that all the entities are requested, thus, if nothing is found, we return an empty array
 		// if `withId` is false, then we return 404, as the requested entity is not found
 		if withId {
-			pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundSmartPath, domainPath), common.ErrorCodeNotFoundSmartPath)
+			pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundSmartPath, domainPath), utils.ErrorCodeNotFoundSmartPath)
 			return
 		} else {
 			respBody = []interface{}{}
@@ -591,13 +591,13 @@ func (pr *ProteusRouter) handleSmartGetRequest(w http.ResponseWriter, domainPath
 
 func (pr *ProteusRouter) handleSmartCreateRequest(w http.ResponseWriter, domainPath string, reqBodyAsMap map[string]interface{}) {
 	if reqBodyAsMap == nil || len(reqBodyAsMap) == 0 {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, common.ErrorInvalidRequestBody, common.ErrorCodeInvalidRequestBody)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody)
 		return
 	}
 
 	id, err := pr.smartService.Create(domainPath, reqBodyAsMap)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	pr.sendJsonResponse(w, http.StatusCreated, models.SmartCreatedResponse{Id: string(id)})
@@ -605,17 +605,17 @@ func (pr *ProteusRouter) handleSmartCreateRequest(w http.ResponseWriter, domainP
 
 func (pr *ProteusRouter) handleSmartUpdateRequest(w http.ResponseWriter, domainPath string, reqBodyAsMap map[string]interface{}) {
 	if reqBodyAsMap == nil || len(reqBodyAsMap) == 0 {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, common.ErrorInvalidRequestBody, common.ErrorCodeInvalidRequestBody)
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody)
 		return
 	}
 
 	found, err := pr.smartService.Update(domainPath, reqBodyAsMap)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	if !found {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundSmartPath, domainPath), common.ErrorCodeNotFoundSmartPath)
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundSmartPath, domainPath), utils.ErrorCodeNotFoundSmartPath)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -624,11 +624,11 @@ func (pr *ProteusRouter) handleSmartUpdateRequest(w http.ResponseWriter, domainP
 func (pr *ProteusRouter) handleSmartDeleteRequest(w http.ResponseWriter, domainPath string) {
 	found, err := pr.smartService.Delete(domainPath)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorInternalServerError, common.ErrorCodeInternalInvalidRequestPath)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
 		return
 	}
 	if !found {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(common.ErrorNotFoundSmartPath, domainPath), common.ErrorCodeNotFoundSmartPath)
+		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundSmartPath, domainPath), utils.ErrorCodeNotFoundSmartPath)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -703,15 +703,15 @@ func (pr *ProteusRouter) parseApiKeyCreds(req *http.Request, proteusHints models
 func (pr *ProteusRouter) getStatusCode(req *http.Request) (int, error) {
 	statusCode := chi.URLParam(req, "status")
 	if statusCode == "" {
-		return 0, errors.New(fmt.Sprintf(common.ErrorInvalidStatusCode, statusCode))
+		return 0, errors.New(fmt.Sprintf(utils.ErrorInvalidStatusCode, statusCode))
 	}
 
 	statusCodeAsInt, err := strconv.Atoi(statusCode)
 	if err != nil {
-		return 0, errors.New(fmt.Sprintf(common.ErrorInvalidStatusCode, statusCode))
+		return 0, errors.New(fmt.Sprintf(utils.ErrorInvalidStatusCode, statusCode))
 	}
 	if statusCodeAsInt < 100 || statusCodeAsInt > 599 {
-		return 0, errors.New(fmt.Sprintf(common.ErrorInvalidStatusCode, statusCode))
+		return 0, errors.New(fmt.Sprintf(utils.ErrorInvalidStatusCode, statusCode))
 	}
 	return statusCodeAsInt, nil
 }
@@ -723,7 +723,7 @@ func (pr *ProteusRouter) sendNoContentResponse(w http.ResponseWriter) {
 func (pr *ProteusRouter) sendJsonResponse(w http.ResponseWriter, httpCode int, payload interface{}) {
 	respBody, err := json.Marshal(payload)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, common.ErrorResponseMarshalling, common.ErrorCodeResponseMarshalling)
+		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorResponseMarshalling, utils.ErrorCodeResponseMarshalling)
 		return
 	}
 

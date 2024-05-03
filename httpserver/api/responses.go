@@ -2,8 +2,8 @@ package api
 
 import (
 	"fmt"
-	"github.com/n0rdy/proteus/httpserver/common"
 	"github.com/n0rdy/proteus/httpserver/models"
+	"github.com/n0rdy/proteus/httpserver/utils"
 	"strconv"
 )
 
@@ -160,6 +160,6 @@ func createForStatusCode(statusCode int) interface{} {
 	if statusCode < 400 {
 		return models.DefaultResponse{Message: strconv.Itoa(statusCode)}
 	} else {
-		return models.ErrorResponse{Message: strconv.Itoa(statusCode), Code: fmt.Sprintf(common.DefaultErrorCodeTpl, statusCode)}
+		return models.ErrorResponse{Message: strconv.Itoa(statusCode), Code: fmt.Sprintf(utils.DefaultErrorCodeTpl, statusCode)}
 	}
 }

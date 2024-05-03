@@ -3,18 +3,20 @@ package httpserver
 import (
 	"context"
 	"errors"
+	"github.com/n0rdy/proteus/common"
 	"github.com/n0rdy/proteus/httpserver/api"
 	"github.com/n0rdy/proteus/httpserver/service/auth/apikey"
 	"github.com/n0rdy/proteus/httpserver/service/auth/basic"
 	"github.com/n0rdy/proteus/httpserver/service/auth/db"
 	"github.com/n0rdy/proteus/httpserver/service/endpoints"
+	"github.com/n0rdy/proteus/httpserver/service/hints"
 	"github.com/n0rdy/proteus/httpserver/service/smart"
 	"github.com/n0rdy/proteus/logger"
 	"net/http"
 	"strconv"
 )
 
-func Start(port int) {
+func Start(port int, conf *common.Conf) {
 	authDb, err := db.NewAuthDb()
 	if err != nil {
 		logger.Error("failed to create auth db", err)
@@ -39,11 +41,14 @@ func Start(port int) {
 	}
 	defer smartService.Close()
 
+	hintsParser := &hints.ProteusHintsParser{}
+	hintsParser.Init(conf)
+
 	portAsString := strconv.Itoa(port)
 	shutdownCh := make(chan struct{})
 	restartCh := make(chan struct{})
 
-	proteusRouter := api.NewProteusRouter(basicAuthService, apiKeyAuthService, smartService, endpointService, shutdownCh, restartCh)
+	proteusRouter := api.NewProteusRouter(basicAuthService, apiKeyAuthService, smartService, endpointService, hintsParser, shutdownCh, restartCh)
 	httpRouter := proteusRouter.NewRouter()
 
 	logger.Info("http: starting server at port " + portAsString)
@@ -72,7 +77,7 @@ func Start(port int) {
 		endpointService.Close()
 		smartService.Close()
 		authDb.Close()
-		Start(port)
+		Start(port, conf)
 	}
 }
 

@@ -1,10 +1,16 @@
 package utils
 
 import (
-	"github.com/n0rdy/proteus/httpserver/common"
 	"os"
 	"runtime"
 	"strings"
+)
+
+const (
+	// OS:
+	WindowsOS = "windows"
+	LinuxOS   = "linux"
+	MacOS     = "darwin"
 )
 
 func GetOsSpecificDbDir() string {
@@ -15,13 +21,13 @@ func GetOsSpecificDbDir() string {
 func getOsSpecificAppDataDir() string {
 	osType := DetectOsType()
 	switch osType {
-	case common.MacOS:
+	case MacOS:
 		homeDir := os.Getenv("HOME")
 		if homeDir != "" {
 			return homeDir + "/Library/Logs/proteus/"
 		}
 		return ""
-	case common.LinuxOS:
+	case LinuxOS:
 		// from XDG Base Directory Specification: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 		dataHome := os.Getenv("XDG_DATA_HOME")
 		if dataHome != "" {
@@ -33,7 +39,7 @@ func getOsSpecificAppDataDir() string {
 			return sanitize(homeDir) + ".local/share/proteus/"
 		}
 		return ""
-	case common.WindowsOS:
+	case WindowsOS:
 		localAppData := os.Getenv("LOCALAPPDATA")
 		if localAppData != "" {
 			return sanitize(localAppData) + "proteus" + string(os.PathSeparator)

@@ -1,0 +1,21 @@
+# this config is invalid, it is just an example of all possible properties
+rest:
+  hints:
+    statusCode: 200
+    responseBody: {
+      "plain": "{ \"key\": \"value\" }",
+      "base64": "eyBcImtleVwiOiBcInZhbHVlXCIgfQ==",
+      "contentType": "application/json"
+    }
+    redirectLocation: "http://www.example.com"
+    waitMs: 1000
+    apiKey: {
+      "name": "coolApiKey",
+      "location": "header",
+      "value": {
+        "format": "plain",
+        "parser": {
+          "regexpBase64": "QmVhcmVyIChcUysp"
+        }
+      }
+    }

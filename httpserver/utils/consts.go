@@ -1,4 +1,4 @@
-package common
+package utils
 
 const (
 	// Proteus API error messages
@@ -64,11 +64,6 @@ const (
 	ApiKeyLocationCookie                = "proteus_api_key_location"
 	ApiKeyValueFormatCookie             = "proteus_api_key_value_format"
 	ApiKeyValueParserRegexpBase64Cookie = "proteus_api_key_value_parser_regexp_base64"
-
-	// OS:
-	WindowsOS = "windows"
-	LinuxOS   = "linux"
-	MacOS     = "darwin"
 
 	// other:
 	DefaultErrorCodeTpl = "%d.default"
