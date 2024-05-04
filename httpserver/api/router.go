@@ -3,8 +3,10 @@ package api
 import (
 	"encoding/base64"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/clbanning/mxj/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/n0rdy/proteus/httpserver/models"
 	"github.com/n0rdy/proteus/httpserver/service/auth/apikey"
@@ -125,55 +127,60 @@ func (pr *ProteusRouter) NewRouter() *chi.Mux {
 }
 
 func (pr *ProteusRouter) handleBasicAuthProtectedResourceReq(w http.ResponseWriter, req *http.Request) {
+	acceptHeader := req.Header.Get("Accept")
 	basicAuthHeader := req.Header.Get("Authorization")
 	if basicAuthHeader == "" {
-		pr.sendUnauthorizedResponse(w)
+		pr.sendUnauthorizedResponse(w, acceptHeader)
 		return
 	}
 
 	if !pr.basicAuthService.CheckCredentials(basicAuthHeader) {
-		pr.sendUnauthorizedResponse(w)
+		pr.sendUnauthorizedResponse(w, acceptHeader)
 		return
 	}
 
 	proteusHints := pr.hintsParser.ParseHints(req)
 	if proteusHints == nil {
-		pr.sendJsonResponse(w, http.StatusOK, models.ProtectedResourceResponse{Message: "Welcome: you are in"})
+		pr.sendResponse(w, http.StatusOK, models.ProtectedResourceResponse{Message: "Welcome: you are in"}, acceptHeader)
 	} else {
 		pr.sendResponseFromHints(w, proteusHints)
 	}
 }
 
 func (pr *ProteusRouter) handleApiKeyAuthProtectedResourceReq(w http.ResponseWriter, req *http.Request) {
+	acceptHeader := req.Header.Get("Accept")
+
 	proteusHints := pr.hintsParser.ParseHints(req)
 	if proteusHints == nil || proteusHints.ApiKey == nil {
 		logger.Error("handleApiKeyAuthProtectedResourceReq: no hints provided, that's why there is no way to fetch the API key")
-		pr.sendUnauthorizedResponse(w)
+		pr.sendUnauthorizedResponse(w, acceptHeader)
 		return
 	}
 
 	apiKeyCreds := pr.parseApiKeyCreds(req, *proteusHints)
 	if apiKeyCreds == nil {
-		pr.sendUnauthorizedResponse(w)
+		pr.sendUnauthorizedResponse(w, acceptHeader)
 		return
 	}
 
 	if !pr.apiKeyAuthService.CheckCredentials(*apiKeyCreds) {
-		pr.sendUnauthorizedResponse(w)
+		pr.sendUnauthorizedResponse(w, acceptHeader)
 		return
 	}
 
 	if proteusHints.StatusCode == 0 && proteusHints.Body == nil {
-		pr.sendJsonResponse(w, http.StatusOK, models.ProtectedResourceResponse{Message: "Welcome: you are in"})
+		pr.sendResponse(w, http.StatusOK, models.ProtectedResourceResponse{Message: "Welcome: you are in"}, acceptHeader)
 	} else {
 		pr.sendResponseFromHints(w, proteusHints)
 	}
 }
 
 func (pr *ProteusRouter) handleStatuses(w http.ResponseWriter, req *http.Request) {
+	acceptHeader := req.Header.Get("Accept")
+
 	statusCode, err := pr.getStatusCode(req)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidStatusCode)
+		pr.sendErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidStatusCode, acceptHeader)
 		return
 	}
 
@@ -181,7 +188,7 @@ func (pr *ProteusRouter) handleStatuses(w http.ResponseWriter, req *http.Request
 	if proteusHints == nil {
 		respBody := forStatusCode(statusCode)
 		pr.enrichResponse(w, statusCode)
-		pr.sendJsonResponse(w, statusCode, respBody)
+		pr.sendResponse(w, statusCode, respBody, acceptHeader)
 	} else {
 		// status code is ignored from hints, as the purpose of this endpoint is to return the status code from the URL
 		proteusHints.StatusCode = statusCode
@@ -190,28 +197,31 @@ func (pr *ProteusRouter) handleStatuses(w http.ResponseWriter, req *http.Request
 }
 
 func (pr *ProteusRouter) clearSmart(w http.ResponseWriter, req *http.Request) {
+	acceptHeader := req.Header.Get("Accept")
+
 	err := pr.smartService.Clear()
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
+		pr.sendErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath, acceptHeader)
 		return
 	}
 	pr.sendNoContentResponse(w)
 }
 
 func (pr *ProteusRouter) handleSmart(w http.ResponseWriter, req *http.Request) {
+	acceptHeader := req.Header.Get("Accept")
 	reqPath := req.URL.Path
 	domainPath, found := strings.CutPrefix(reqPath, utils.SmartEndpointPath)
 	if !found {
 		domainPath, found = strings.CutPrefix(reqPath, utils.SmartEndpointPathWithoutLeadingSlash)
 		if !found {
 			// this should never happen
-			pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
+			pr.sendErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath, acceptHeader)
 			return
 		}
 	}
 
 	if domainPath == "" || domainPath == "/" {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorInvalidSmartRequestPath, reqPath), utils.ErrorCodeInvalidSmartRequestPath)
+		pr.sendErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorInvalidSmartRequestPath, reqPath), utils.ErrorCodeInvalidSmartRequestPath, acceptHeader)
 		return
 	}
 
@@ -221,22 +231,22 @@ func (pr *ProteusRouter) handleSmart(w http.ResponseWriter, req *http.Request) {
 		var err error
 		reqBodyAsMap, err = utils.RequestBodyAsMap(req.Body, req.Header.Get("Content-Type"))
 		if err != nil {
-			pr.sendJsonErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody)
+			pr.sendErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody, acceptHeader)
 			return
 		}
 	}
 
 	switch req.Method {
 	case http.MethodGet:
-		pr.handleSmartGetRequest(w, domainPath)
+		pr.handleSmartGetRequest(w, domainPath, acceptHeader)
 	case http.MethodPost:
-		pr.handleSmartCreateRequest(w, domainPath, reqBodyAsMap)
+		pr.handleSmartCreateRequest(w, domainPath, reqBodyAsMap, acceptHeader)
 	case http.MethodPut:
-		pr.handleSmartUpdateRequest(w, domainPath, reqBodyAsMap)
+		pr.handleSmartUpdateRequest(w, domainPath, reqBodyAsMap, acceptHeader)
 	case http.MethodDelete:
-		pr.handleSmartDeleteRequest(w, domainPath)
+		pr.handleSmartDeleteRequest(w, domainPath, acceptHeader)
 	default:
-		pr.sendJsonErrorResponse(w, http.StatusMethodNotAllowed, fmt.Sprintf(utils.ErrorInvalidSmartRequestMethod, req.Method), utils.ErrorCodeInvalidSmartRequestMethod)
+		pr.sendErrorResponse(w, http.StatusMethodNotAllowed, fmt.Sprintf(utils.ErrorInvalidSmartRequestMethod, req.Method), utils.ErrorCodeInvalidSmartRequestMethod, acceptHeader)
 	}
 }
 
@@ -450,7 +460,7 @@ func (pr *ProteusRouter) deleteApiKeyAuthCreds(w http.ResponseWriter, req *http.
 }
 
 func (pr *ProteusRouter) healthCheck(w http.ResponseWriter, req *http.Request) {
-	pr.sendJsonResponse(w, http.StatusOK, healthOk)
+	pr.sendResponse(w, http.StatusOK, healthOk, req.Header.Get("Accept"))
 }
 
 func (pr *ProteusRouter) shutdown(w http.ResponseWriter, req *http.Request) {
@@ -464,10 +474,10 @@ func (pr *ProteusRouter) restart(w http.ResponseWriter, req *http.Request) {
 }
 
 func (pr *ProteusRouter) mirrorRequest(w http.ResponseWriter, req *http.Request) {
-	respBodyAsBytes, err := utils.RequestBodyAsBytes(req.Body)
+	reqBodyAsBytes, err := utils.RequestBodyAsBytes(req.Body)
 	defer utils.CloseSafe(req.Body)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody)
+		pr.sendErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody, req.Header.Get("Accept"))
 		return
 	}
 
@@ -476,7 +486,7 @@ func (pr *ProteusRouter) mirrorRequest(w http.ResponseWriter, req *http.Request)
 		respHeaders[key] = values
 	}
 
-	pr.sendMirrorResponse(w, respBodyAsBytes, respHeaders, req.Cookies())
+	pr.sendMirrorResponse(w, reqBodyAsBytes, respHeaders, req.Cookies())
 }
 
 func (pr *ProteusRouter) registerCustomRestEndpoints(router *chi.Mux) {
@@ -550,7 +560,7 @@ func (pr *ProteusRouter) handleCustomRestEndpoint(endpoint models.RestEndpoint) 
 				decodedString, err := base64.StdEncoding.DecodeString(resp.Body.AsBase64)
 				if err != nil {
 					logger.Error("handleCustomRestEndpoint: failed to decode base64 string from the stored [asBase64] field value", err)
-					pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
+					pr.sendErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath, req.Header.Get("Accept"))
 					return
 				}
 				respBodyAsString = string(decodedString)
@@ -564,71 +574,71 @@ func (pr *ProteusRouter) handleCustomRestEndpoint(endpoint models.RestEndpoint) 
 func (pr *ProteusRouter) handleAnyReq(w http.ResponseWriter, req *http.Request) {
 	proteusHints := pr.hintsParser.ParseHints(req)
 	if proteusHints == nil {
-		pr.sendJsonResponse(w, http.StatusOK, _200OkResponse)
+		pr.sendResponse(w, http.StatusOK, _200OkResponse, req.Header.Get("Accept"))
 	} else {
 		pr.sendResponseFromHints(w, proteusHints)
 	}
 }
 
-func (pr *ProteusRouter) handleSmartGetRequest(w http.ResponseWriter, domainPath string) {
+func (pr *ProteusRouter) handleSmartGetRequest(w http.ResponseWriter, domainPath string, acceptHeader string) {
 	respBody, withId, err := pr.smartService.Get(domainPath)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
+		pr.sendErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath, acceptHeader)
 		return
 	}
 	if respBody == nil {
 		// `withId` means that all the entities are requested, thus, if nothing is found, we return an empty array
 		// if `withId` is false, then we return 404, as the requested entity is not found
 		if withId {
-			pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundSmartPath, domainPath), utils.ErrorCodeNotFoundSmartPath)
+			pr.sendErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundSmartPath, domainPath), utils.ErrorCodeNotFoundSmartPath, acceptHeader)
 			return
 		} else {
 			respBody = []interface{}{}
 		}
 	}
-	pr.sendJsonResponse(w, http.StatusOK, respBody)
+	pr.sendResponse(w, http.StatusOK, respBody, acceptHeader)
 }
 
-func (pr *ProteusRouter) handleSmartCreateRequest(w http.ResponseWriter, domainPath string, reqBodyAsMap map[string]interface{}) {
+func (pr *ProteusRouter) handleSmartCreateRequest(w http.ResponseWriter, domainPath string, reqBodyAsMap map[string]interface{}, acceptHeader string) {
 	if reqBodyAsMap == nil || len(reqBodyAsMap) == 0 {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody)
+		pr.sendErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody, acceptHeader)
 		return
 	}
 
 	id, err := pr.smartService.Create(domainPath, reqBodyAsMap)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
+		pr.sendErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath, acceptHeader)
 		return
 	}
-	pr.sendJsonResponse(w, http.StatusCreated, models.SmartCreatedResponse{Id: string(id)})
+	pr.sendResponse(w, http.StatusCreated, models.SmartCreatedResponse{Id: id}, acceptHeader)
 }
 
-func (pr *ProteusRouter) handleSmartUpdateRequest(w http.ResponseWriter, domainPath string, reqBodyAsMap map[string]interface{}) {
+func (pr *ProteusRouter) handleSmartUpdateRequest(w http.ResponseWriter, domainPath string, reqBodyAsMap map[string]interface{}, acceptHeader string) {
 	if reqBodyAsMap == nil || len(reqBodyAsMap) == 0 {
-		pr.sendJsonErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody)
+		pr.sendErrorResponse(w, http.StatusBadRequest, utils.ErrorInvalidRequestBody, utils.ErrorCodeInvalidRequestBody, acceptHeader)
 		return
 	}
 
 	found, err := pr.smartService.Update(domainPath, reqBodyAsMap)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
+		pr.sendErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath, acceptHeader)
 		return
 	}
 	if !found {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundSmartPath, domainPath), utils.ErrorCodeNotFoundSmartPath)
+		pr.sendErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundSmartPath, domainPath), utils.ErrorCodeNotFoundSmartPath, acceptHeader)
 		return
 	}
 	pr.sendNoContentResponse(w)
 }
 
-func (pr *ProteusRouter) handleSmartDeleteRequest(w http.ResponseWriter, domainPath string) {
+func (pr *ProteusRouter) handleSmartDeleteRequest(w http.ResponseWriter, domainPath string, acceptHeader string) {
 	found, err := pr.smartService.Delete(domainPath)
 	if err != nil {
-		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath)
+		pr.sendErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath, acceptHeader)
 		return
 	}
 	if !found {
-		pr.sendJsonErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundSmartPath, domainPath), utils.ErrorCodeNotFoundSmartPath)
+		pr.sendErrorResponse(w, http.StatusNotFound, fmt.Sprintf(utils.ErrorNotFoundSmartPath, domainPath), utils.ErrorCodeNotFoundSmartPath, acceptHeader)
 		return
 	}
 	pr.sendNoContentResponse(w)
@@ -720,14 +730,61 @@ func (pr *ProteusRouter) sendNoContentResponse(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (pr *ProteusRouter) sendResponse(w http.ResponseWriter, httpCode int, payload interface{}, acceptHeader string) {
+	switch acceptHeader {
+	case "application/json":
+		pr.sendJsonResponse(w, httpCode, payload)
+	case "application/xml":
+		pr.sendXmlResponse(w, httpCode, payload)
+	default:
+		// default to JSON
+		pr.sendJsonResponse(w, httpCode, payload)
+	}
+}
+
 func (pr *ProteusRouter) sendJsonResponse(w http.ResponseWriter, httpCode int, payload interface{}) {
 	respBody, err := json.Marshal(payload)
 	if err != nil {
+		logger.Error("sendJsonResponse: failed to marshal JSON response body", err)
 		pr.sendJsonErrorResponse(w, http.StatusInternalServerError, utils.ErrorResponseMarshalling, utils.ErrorCodeResponseMarshalling)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(httpCode)
+	w.Write(respBody)
+}
+
+func (pr *ProteusRouter) sendXmlResponse(w http.ResponseWriter, httpCode int, payload interface{}) {
+	var respBody []byte
+	var err error
+
+	// default Go XML marshaling doesn't support `map` data type, that's why we need to fullback to MXJ library for such cases
+	switch payloadCasted := payload.(type) {
+	case map[string]interface{}:
+		payloadAsMxj := mxj.Map(payloadCasted)
+		respBody, err = payloadAsMxj.Xml()
+	case []map[string]interface{}:
+		payloadAsMxj := mxj.Maps{}
+		for _, item := range payloadCasted {
+			payloadAsMxj = append(payloadAsMxj, item)
+		}
+		var respBodyAsString string
+		respBodyAsString, err = payloadAsMxj.XmlString()
+		if err == nil && respBodyAsString != "" {
+			respBody = []byte(respBodyAsString)
+		}
+	default:
+		respBody, err = xml.Marshal(payload)
+	}
+
+	if err != nil {
+		logger.Error("sendXmlResponse: failed to marshal XML response body", err)
+		pr.sendXmlErrorResponse(w, http.StatusInternalServerError, utils.ErrorResponseMarshalling, utils.ErrorCodeResponseMarshalling)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/xml")
 	w.WriteHeader(httpCode)
 	w.Write(respBody)
 }
@@ -774,10 +831,26 @@ func (pr *ProteusRouter) sendResponseFromString(w http.ResponseWriter, httpCode 
 	}
 }
 
-func (pr *ProteusRouter) sendUnauthorizedResponse(w http.ResponseWriter) {
-	pr.sendJsonResponse(w, http.StatusUnauthorized, forStatusCode(http.StatusUnauthorized))
+func (pr *ProteusRouter) sendUnauthorizedResponse(w http.ResponseWriter, acceptHeader string) {
+	pr.sendResponse(w, http.StatusUnauthorized, forStatusCode(http.StatusUnauthorized), acceptHeader)
+}
+
+func (pr *ProteusRouter) sendErrorResponse(w http.ResponseWriter, httpCode int, message string, errorCode string, acceptHeader string) {
+	switch acceptHeader {
+	case "application/json":
+		pr.sendJsonErrorResponse(w, httpCode, message, errorCode)
+	case "application/xml":
+		pr.sendXmlErrorResponse(w, httpCode, message, errorCode)
+	default:
+		// default to JSON
+		pr.sendJsonErrorResponse(w, httpCode, message, errorCode)
+	}
 }
 
 func (pr *ProteusRouter) sendJsonErrorResponse(w http.ResponseWriter, httpCode int, message string, errorCode string) {
 	pr.sendJsonResponse(w, httpCode, models.ErrorResponse{Message: message, Code: errorCode})
+}
+
+func (pr *ProteusRouter) sendXmlErrorResponse(w http.ResponseWriter, httpCode int, message string, errorCode string) {
+	pr.sendXmlResponse(w, httpCode, models.ErrorResponse{Message: message, Code: errorCode})
 }

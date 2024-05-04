@@ -8,72 +8,72 @@ import (
 // requests models:
 
 type RestEndpoint struct {
-	Path                      string                                   `json:"path,omitempty"`
-	Method                    string                                   `json:"method,omitempty"`
-	Description               string                                   `json:"description,omitempty"`
-	DefaultResponseStatusCode int                                      `json:"defaultResponseStatusCode,omitempty"`
-	Responses                 map[string]RestEndpointResponseStructure `json:"responses,omitempty"`
+	Path                      string                                   `json:"path,omitempty" xml:"path,omitempty"`
+	Method                    string                                   `json:"method,omitempty" xml:"method,omitempty"`
+	Description               string                                   `json:"description,omitempty" xml:"description,omitempty"`
+	DefaultResponseStatusCode int                                      `json:"defaultResponseStatusCode,omitempty" xml:"defaultResponseStatusCode,omitempty"`
+	Responses                 map[string]RestEndpointResponseStructure `json:"responses,omitempty" xml:"responses,omitempty"`
 }
 
 type RestEndpointResponseStructure struct {
-	Body    *RestEndpointResponseBody `json:"body,omitempty"`
-	Headers []RestEndpointHeader      `json:"headers,omitempty"`
-	Cookies []RestEndpointCookie      `json:"cookies,omitempty"`
+	Body    *RestEndpointResponseBody `json:"body,omitempty" xml:"body,omitempty"`
+	Headers []RestEndpointHeader      `json:"headers,omitempty" xml:"headers,omitempty"`
+	Cookies []RestEndpointCookie      `json:"cookies,omitempty" xml:"cookies,omitempty"`
 }
 
 type RestEndpointResponseBody struct {
-	AsString string `json:"asString,omitempty"`
-	AsBase64 string `json:"asBase64,omitempty"`
+	AsString string `json:"asString,omitempty" xml:"asString,omitempty"`
+	AsBase64 string `json:"asBase64,omitempty" xml:"asBase64,omitempty"`
 }
 
 type RestEndpointHeader struct {
-	Name   string   `json:"name,omitempty"`
-	Values []string `json:"values,omitempty"`
+	Name   string   `json:"name,omitempty" xml:"name,omitempty"`
+	Values []string `json:"values,omitempty" xml:"values,omitempty"`
 }
 
 type RestEndpointCookie struct {
-	Name  string `json:"name,omitempty"`
-	Value string `json:"value,omitempty"`
+	Name  string `json:"name,omitempty" xml:"name,omitempty"`
+	Value string `json:"value,omitempty" xml:"value,omitempty"`
 }
 
 type BasicAuthCredentialsInstance struct {
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
+	Username string `json:"username,omitempty" xml:"username,omitempty"`
+	Password string `json:"password,omitempty" xml:"password,omitempty"`
 }
 
 type ApiKeyAuthCredentialsInstance struct {
-	KeyName  string `json:"keyName,omitempty"`
-	KeyValue string `json:"keyValue,omitempty"`
+	KeyName  string `json:"keyName,omitempty" xml:"keyName,omitempty"`
+	KeyValue string `json:"keyValue,omitempty" xml:"keyValue,omitempty"`
 }
 
 // responses models:
 
 type DefaultResponse struct {
-	Message string `json:"message,omitempty"`
+	Message string `json:"message,omitempty" xml:"message,omitempty"`
 }
 
 type ErrorResponse struct {
-	Message string `json:"message,omitempty"`
-	Code    string `json:"code,omitempty"`
+	Message string `json:"message,omitempty" xml:"message,omitempty"`
+	Code    string `json:"code,omitempty" xml:"code,omitempty"`
 }
 
 type ProtectedResourceResponse struct {
-	Message string `json:"message,omitempty"`
+	Message string `json:"message,omitempty" xml:"message,omitempty"`
 }
 
 type SmartCreatedResponse struct {
-	Id string `json:"id,omitempty"`
+	Id string `json:"id,omitempty" xml:"id,omitempty"`
 }
 
 type HealthResponse struct {
-	Status string `json:"status"`
+	Status string `json:"status" xml:"status"`
 }
 
 type EndpointResponse struct {
-	Path        string                                   `json:"path,omitempty"`
-	Method      string                                   `json:"method,omitempty"`
-	Description string                                   `json:"description,omitempty"`
-	Responses   map[string]RestEndpointResponseStructure `json:"responses,omitempty"`
+	Path        string                                   `json:"path,omitempty" xml:"path,omitempty"`
+	Method      string                                   `json:"method,omitempty" xml:"method,omitempty"`
+	Description string                                   `json:"description,omitempty" xml:"description,omitempty"`
+	Responses   map[string]RestEndpointResponseStructure `json:"responses,omitempty" xml:"responses,omitempty"`
 }
 
 // other models:
