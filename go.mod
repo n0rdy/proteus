@@ -8,7 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/rs/cors v1.11.0
 	github.com/spf13/cobra v1.8.0
-	go.etcd.io/bbolt v1.3.9
+	go.etcd.io/bbolt v1.3.10
 	gopkg.in/yaml.v3 v3.0.1
 )
 
