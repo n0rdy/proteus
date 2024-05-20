@@ -96,7 +96,8 @@ func (pr *ProteusRouter) NewRouter() *chi.Mux {
 				r.Get("/{method}/*", pr.getRestEndpoint)
 				r.Put("/{method}/*", pr.changeRestEndpoint)
 				r.Delete("/{method}/*", pr.deleteRestEndpoint)
-				r.Post("/sources/openapi/v3", pr.addRestEndpointFromOpenApiV3)
+				r.Post("/sources/swagger/v2", pr.addRestEndpointsFromSwaggerV2)
+				r.Post("/sources/openapi/v3", pr.addRestEndpointsFromOpenApiV3)
 			})
 
 			r.Route("/auth/credentials/", func(r chi.Router) {
@@ -374,8 +375,8 @@ func (pr *ProteusRouter) deleteRestEndpoint(w http.ResponseWriter, req *http.Req
 	pr.restartCh <- struct{}{}
 }
 
-func (pr *ProteusRouter) addRestEndpointFromOpenApiV3(w http.ResponseWriter, req *http.Request) {
-	var openApiV3Source models.OpenApiV3Source
+func (pr *ProteusRouter) addRestEndpointsFromOpenApiV3(w http.ResponseWriter, req *http.Request) {
+	var openApiV3Source models.OpenApiSwaggerSource
 	err := json.NewDecoder(req.Body).Decode(&openApiV3Source)
 	defer utils.CloseSafe(req.Body)
 	if err != nil {
@@ -399,6 +400,50 @@ func (pr *ProteusRouter) addRestEndpointFromOpenApiV3(w http.ResponseWriter, req
 		restEndpoints, err = pr.restEndpointsGenerator.FromOpenApiV3Url(openApiV3Source.Url)
 	} else {
 		restEndpoints, err = pr.restEndpointsGenerator.FromOpenApiV3Content([]byte(openApiV3Source.Content))
+	}
+
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidRequestBody)
+		return
+	}
+
+	for _, endpoint := range restEndpoints {
+		err = pr.endpointService.AddRestEndpoint(endpoint)
+		if err != nil {
+			pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidRequestBody)
+			return
+		}
+	}
+	pr.sendNoContentResponse(w)
+
+	pr.restartCh <- struct{}{}
+}
+
+func (pr *ProteusRouter) addRestEndpointsFromSwaggerV2(w http.ResponseWriter, req *http.Request) {
+	var swaggerV2Source models.OpenApiSwaggerSource
+	err := json.NewDecoder(req.Body).Decode(&swaggerV2Source)
+	defer utils.CloseSafe(req.Body)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidRequestBody)
+		return
+	}
+
+	if commonUtils.NonePresent(swaggerV2Source.PathToFile, swaggerV2Source.Url, swaggerV2Source.Content) {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, "either path to file, URK or content should be provided", utils.ErrorCodeInvalidRequestBody)
+		return
+	}
+	if commonUtils.MoreThanOnePresent(swaggerV2Source.PathToFile, swaggerV2Source.Url, swaggerV2Source.Content) {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, "only one source should be provided", utils.ErrorCodeInvalidRequestBody)
+		return
+	}
+
+	restEndpoints := make([]models.RestEndpoint, 0)
+	if swaggerV2Source.PathToFile != "" {
+		restEndpoints, err = pr.restEndpointsGenerator.FromSwaggerV2File(swaggerV2Source.PathToFile)
+	} else if swaggerV2Source.Url != "" {
+		restEndpoints, err = pr.restEndpointsGenerator.FromSwaggerV2Url(swaggerV2Source.Url)
+	} else {
+		restEndpoints, err = pr.restEndpointsGenerator.FromSwaggerV2Content([]byte(swaggerV2Source.Content))
 	}
 
 	if err != nil {

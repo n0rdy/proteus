@@ -3,14 +3,18 @@ package generator
 import (
 	"encoding/json"
 	"errors"
+	"github.com/getkin/kin-openapi/openapi2"
+	"github.com/getkin/kin-openapi/openapi2conv"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/n0rdy/proteus/httpserver/models"
 	"github.com/n0rdy/proteus/httpserver/utils"
 	"github.com/n0rdy/proteus/httpserver/utils/xmlp"
 	"github.com/n0rdy/proteus/logger"
 	commonUtils "github.com/n0rdy/proteus/utils"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 )
 
@@ -89,6 +93,70 @@ func (reg *RestEndpointsGenerator) FromOpenApiV3Content(openApi []byte) ([]model
 		return nil, err
 	}
 	return reg.fromOpenApiV3(doc)
+}
+
+func (reg *RestEndpointsGenerator) FromSwaggerV2File(pathToSwagger string) ([]models.RestEndpoint, error) {
+	input, err := os.ReadFile(pathToSwagger)
+	if err != nil {
+		logger.Error("RestEndpointsGenerator: failed to read Swagger file: ["+pathToSwagger+"]", err)
+		return nil, err
+	}
+
+	var doc openapi2.T
+	if err = json.Unmarshal(input, &doc); err != nil {
+		logger.Error("RestEndpointsGenerator: failed to unmarshal Swagger file: ["+pathToSwagger+"]", err)
+		return nil, err
+	}
+
+	openApiDoc, err := openapi2conv.ToV3(&doc)
+	if err != nil {
+		logger.Error("RestEndpointsGenerator: failed to convert Swagger to OpenAPI v3", err)
+		return nil, err
+	}
+	return reg.fromOpenApiV3(openApiDoc)
+}
+
+func (reg *RestEndpointsGenerator) FromSwaggerV2Url(urlSwagger string) ([]models.RestEndpoint, error) {
+	parsedUrl, err := url.Parse(urlSwagger)
+	if err != nil {
+		logger.Error("RestEndpointsGenerator: failed to parse Swagger URL: ["+urlSwagger+"]", err)
+		return nil, err
+	}
+
+	resp, err := http.Get(parsedUrl.String())
+	if err != nil {
+		logger.Error("RestEndpointsGenerator: failed to fetch Swagger content from URL: ["+urlSwagger+"]", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logger.Error("RestEndpointsGenerator: failed to fetch Swagger content from URL: [" + urlSwagger + "] - status code: [" + strconv.Itoa(resp.StatusCode) + "]")
+		return nil, errors.New("failed to fetch Swagger content from URL: [" + urlSwagger + "] - status code: [" + strconv.Itoa(resp.StatusCode) + "]")
+	}
+
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("RestEndpointsGenerator: failed to read Swagger content from URL: ["+urlSwagger+"]", err)
+		return nil, err
+	}
+
+	return reg.FromSwaggerV2Content(content)
+}
+
+func (reg *RestEndpointsGenerator) FromSwaggerV2Content(swagger []byte) ([]models.RestEndpoint, error) {
+	var doc openapi2.T
+	if err := json.Unmarshal(swagger, &doc); err != nil {
+		logger.Error("RestEndpointsGenerator: failed to unmarshal Swagger content", err)
+		return nil, err
+	}
+
+	openApiDoc, err := openapi2conv.ToV3(&doc)
+	if err != nil {
+		logger.Error("RestEndpointsGenerator: failed to convert Swagger to OpenAPI v3", err)
+		return nil, err
+	}
+	return reg.fromOpenApiV3(openApiDoc)
 }
 
 func (reg *RestEndpointsGenerator) fromOpenApiV3(openApiDoc *openapi3.T) ([]models.RestEndpoint, error) {

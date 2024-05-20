@@ -81,8 +81,8 @@ type RestEndpointCookie struct {
 	Value string `json:"value,omitempty" xml:"value,omitempty"`
 }
 
-type OpenApiV3Source struct {
-	// only one of the fields should be set as the source of the OpenAPI v3 spec
+type OpenApiSwaggerSource struct {
+	// only one of the fields should be set as the source of the OpenAPI v3 or Swagger v2 spec
 	PathToFile string `json:"pathToFile,omitempty" xml:"pathToFile,omitempty"`
 	Url        string `json:"url,omitempty" xml:"url,omitempty"`
 	Content    string `json:"content,omitempty" xml:"content,omitempty"`
