@@ -3,19 +3,20 @@ package api
 import (
 	"encoding/base64"
 	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/clbanning/mxj/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/n0rdy/proteus/httpserver/models"
 	"github.com/n0rdy/proteus/httpserver/service/auth/apikey"
 	"github.com/n0rdy/proteus/httpserver/service/auth/basic"
 	"github.com/n0rdy/proteus/httpserver/service/endpoints"
+	"github.com/n0rdy/proteus/httpserver/service/generator"
 	"github.com/n0rdy/proteus/httpserver/service/hints"
 	"github.com/n0rdy/proteus/httpserver/service/smart"
 	"github.com/n0rdy/proteus/httpserver/utils"
+	"github.com/n0rdy/proteus/httpserver/utils/xmlp"
 	"github.com/n0rdy/proteus/logger"
+	commonUtils "github.com/n0rdy/proteus/utils"
 	"github.com/rs/cors"
 	"net/http"
 	"strconv"
@@ -24,13 +25,14 @@ import (
 )
 
 type ProteusRouter struct {
-	shutdownCh        chan struct{}
-	restartCh         chan struct{}
-	hintsParser       *hints.ProteusHintsParser
-	basicAuthService  *basic.Service
-	apiKeyAuthService *apikey.Service
-	smartService      *smart.Service
-	endpointService   *endpoints.Service
+	shutdownCh             chan struct{}
+	restartCh              chan struct{}
+	hintsParser            *hints.ProteusHintsParser
+	basicAuthService       *basic.Service
+	apiKeyAuthService      *apikey.Service
+	smartService           *smart.Service
+	endpointService        *endpoints.Service
+	restEndpointsGenerator *generator.RestEndpointsGenerator
 }
 
 func NewProteusRouter(
@@ -39,17 +41,19 @@ func NewProteusRouter(
 	smartService *smart.Service,
 	endpointService *endpoints.Service,
 	hintsParser *hints.ProteusHintsParser,
+	restEndpointsGenerator *generator.RestEndpointsGenerator,
 	shutdownCh chan struct{},
 	restartCh chan struct{},
 ) *ProteusRouter {
 	return &ProteusRouter{
-		shutdownCh:        shutdownCh,
-		restartCh:         restartCh,
-		hintsParser:       hintsParser,
-		basicAuthService:  basicAuthService,
-		apiKeyAuthService: apiKeyAuthService,
-		smartService:      smartService,
-		endpointService:   endpointService,
+		shutdownCh:             shutdownCh,
+		restartCh:              restartCh,
+		hintsParser:            hintsParser,
+		basicAuthService:       basicAuthService,
+		apiKeyAuthService:      apiKeyAuthService,
+		smartService:           smartService,
+		endpointService:        endpointService,
+		restEndpointsGenerator: restEndpointsGenerator,
 	}
 }
 
@@ -92,6 +96,7 @@ func (pr *ProteusRouter) NewRouter() *chi.Mux {
 				r.Get("/{method}/*", pr.getRestEndpoint)
 				r.Put("/{method}/*", pr.changeRestEndpoint)
 				r.Delete("/{method}/*", pr.deleteRestEndpoint)
+				r.Post("/sources/openapi/v3", pr.addRestEndpointFromOpenApiV3)
 			})
 
 			r.Route("/auth/credentials/", func(r chi.Router) {
@@ -115,11 +120,11 @@ func (pr *ProteusRouter) NewRouter() *chi.Mux {
 		})
 
 		r.HandleFunc("/mirror", pr.mirrorRequest)
+
+		router.Get("/healthcheck", pr.healthCheck)
 	})
 
 	pr.registerCustomRestEndpoints(router)
-
-	router.Get("/healthcheck", pr.healthCheck)
 
 	router.HandleFunc("/*", pr.handleAnyReq)
 
@@ -369,6 +374,50 @@ func (pr *ProteusRouter) deleteRestEndpoint(w http.ResponseWriter, req *http.Req
 	pr.restartCh <- struct{}{}
 }
 
+func (pr *ProteusRouter) addRestEndpointFromOpenApiV3(w http.ResponseWriter, req *http.Request) {
+	var openApiV3Source models.OpenApiV3Source
+	err := json.NewDecoder(req.Body).Decode(&openApiV3Source)
+	defer utils.CloseSafe(req.Body)
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidRequestBody)
+		return
+	}
+
+	if commonUtils.NonePresent(openApiV3Source.PathToFile, openApiV3Source.Url, openApiV3Source.Content) {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, "either path to file, URK or content should be provided", utils.ErrorCodeInvalidRequestBody)
+		return
+	}
+	if commonUtils.MoreThanOnePresent(openApiV3Source.PathToFile, openApiV3Source.Url, openApiV3Source.Content) {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, "only one source should be provided", utils.ErrorCodeInvalidRequestBody)
+		return
+	}
+
+	restEndpoints := make([]models.RestEndpoint, 0)
+	if openApiV3Source.PathToFile != "" {
+		restEndpoints, err = pr.restEndpointsGenerator.FromOpenApiV3File(openApiV3Source.PathToFile)
+	} else if openApiV3Source.Url != "" {
+		restEndpoints, err = pr.restEndpointsGenerator.FromOpenApiV3Url(openApiV3Source.Url)
+	} else {
+		restEndpoints, err = pr.restEndpointsGenerator.FromOpenApiV3Content([]byte(openApiV3Source.Content))
+	}
+
+	if err != nil {
+		pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidRequestBody)
+		return
+	}
+
+	for _, endpoint := range restEndpoints {
+		err = pr.endpointService.AddRestEndpoint(endpoint)
+		if err != nil {
+			pr.sendJsonErrorResponse(w, http.StatusBadRequest, err.Error(), utils.ErrorCodeInvalidRequestBody)
+			return
+		}
+	}
+	pr.sendNoContentResponse(w)
+
+	pr.restartCh <- struct{}{}
+}
+
 func (pr *ProteusRouter) getAllBasicAuthCreds(w http.ResponseWriter, req *http.Request) {
 	creds := pr.basicAuthService.GetAll()
 	pr.sendJsonResponse(w, http.StatusOK, creds)
@@ -514,6 +563,10 @@ func (pr *ProteusRouter) registerCustomRestEndpoints(router *chi.Mux) {
 			router.Head(restEndpoint.Path, pr.handleCustomRestEndpoint(restEndpoint))
 		case http.MethodOptions:
 			router.Options(restEndpoint.Path, pr.handleCustomRestEndpoint(restEndpoint))
+		case http.MethodConnect:
+			router.Connect(restEndpoint.Path, pr.handleCustomRestEndpoint(restEndpoint))
+		case http.MethodTrace:
+			router.Trace(restEndpoint.Path, pr.handleCustomRestEndpoint(restEndpoint))
 		default:
 			logger.Error("registerCustomRestEndpoints: invalid method: " + restEndpoint.Method)
 		}
@@ -552,20 +605,19 @@ func (pr *ProteusRouter) handleCustomRestEndpoint(endpoint models.RestEndpoint) 
 			})
 		}
 
-		respBodyAsString := ""
-		if resp.Body != nil {
-			if resp.Body.AsString != "" {
-				respBodyAsString = resp.Body.AsString
-			} else if resp.Body.AsBase64 != "" {
-				decodedString, err := base64.StdEncoding.DecodeString(resp.Body.AsBase64)
-				if err != nil {
-					logger.Error("handleCustomRestEndpoint: failed to decode base64 string from the stored [asBase64] field value", err)
-					pr.sendErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath, req.Header.Get("Accept"))
-					return
-				}
-				respBodyAsString = string(decodedString)
+		acceptHeader := w.Header().Get("Accept")
+		respBodyAsString, mediaType, err := pr.getResponseBodyAsString(resp, acceptHeader)
+		if err != nil {
+			if errors.Is(err, utils.ErrMediaTypeNotFound) {
+				pr.sendErrorResponse(w, http.StatusNotAcceptable, fmt.Sprintf(utils.ErrorNotAcceptable, resp.GetMediaTypesAsString()), utils.ErrorCodeNotAcceptable, acceptHeader)
+				return
+			} else {
+				logger.Error("handleCustomRestEndpoint: failed to decode base64 string from the stored [asBase64] field value", err)
+				pr.sendErrorResponse(w, http.StatusInternalServerError, utils.ErrorInternalServerError, utils.ErrorCodeInternalInvalidRequestPath, req.Header.Get("Accept"))
+				return
 			}
 		}
+		w.Header().Add("Content-Type", mediaType)
 
 		pr.sendResponseFromString(w, responseCode, respBodyAsString)
 	}
@@ -710,6 +762,33 @@ func (pr *ProteusRouter) parseApiKeyCreds(req *http.Request, proteusHints models
 	}
 }
 
+func (pr *ProteusRouter) getResponseBodyAsString(resp models.RestEndpointResponseStructure, acceptHeader string) (respBody string, mediaType string, err error) {
+	if resp.Body != nil && len(resp.Body) > 0 {
+		// if accept header is not provided, then we try to find the "application/json" or "application/xml" media types
+		// if they are not present, we use the first available response body
+		if acceptHeader == "" {
+			if jsonRespBody := resp.Get("application/json"); jsonRespBody != nil {
+				return jsonRespBody.BodyAsString()
+			}
+			if xmlRespBody := resp.Get("application/xml"); xmlRespBody != nil {
+				return xmlRespBody.BodyAsString()
+			}
+			return resp.Body[0].BodyAsString()
+		}
+
+		mediaTypes := utils.GetAcceptHeaderMediaTypesInOrder(acceptHeader)
+		for _, mt := range mediaTypes {
+			if rp := resp.Get(mt); rp != nil {
+				return rp.BodyAsString()
+			}
+		}
+
+		logger.Error(fmt.Sprintf("getResponseBodyAsString: media type mentioned within the accept header [%s] is not found among the preconfigured response bodies [%s]", acceptHeader, resp.GetMediaTypesAsString()))
+		return "", "", utils.ErrMediaTypeNotFound
+	}
+	return "", "", nil
+}
+
 func (pr *ProteusRouter) getStatusCode(req *http.Request) (int, error) {
 	statusCode := chi.URLParam(req, "status")
 	if statusCode == "" {
@@ -731,12 +810,12 @@ func (pr *ProteusRouter) sendNoContentResponse(w http.ResponseWriter) {
 }
 
 func (pr *ProteusRouter) sendResponse(w http.ResponseWriter, httpCode int, payload interface{}, acceptHeader string) {
-	switch acceptHeader {
-	case "application/json":
+	mediaTypes := utils.GetAcceptHeaderMediaTypes(acceptHeader)
+	if mediaTypes["application/json"] {
 		pr.sendJsonResponse(w, httpCode, payload)
-	case "application/xml":
+	} else if mediaTypes["application/xml"] {
 		pr.sendXmlResponse(w, httpCode, payload)
-	default:
+	} else {
 		// default to JSON
 		pr.sendJsonResponse(w, httpCode, payload)
 	}
@@ -756,28 +835,7 @@ func (pr *ProteusRouter) sendJsonResponse(w http.ResponseWriter, httpCode int, p
 }
 
 func (pr *ProteusRouter) sendXmlResponse(w http.ResponseWriter, httpCode int, payload interface{}) {
-	var respBody []byte
-	var err error
-
-	// default Go XML marshaling doesn't support `map` data type, that's why we need to fullback to MXJ library for such cases
-	switch payloadCasted := payload.(type) {
-	case map[string]interface{}:
-		payloadAsMxj := mxj.Map(payloadCasted)
-		respBody, err = payloadAsMxj.Xml()
-	case []map[string]interface{}:
-		payloadAsMxj := mxj.Maps{}
-		for _, item := range payloadCasted {
-			payloadAsMxj = append(payloadAsMxj, item)
-		}
-		var respBodyAsString string
-		respBodyAsString, err = payloadAsMxj.XmlString()
-		if err == nil && respBodyAsString != "" {
-			respBody = []byte(respBodyAsString)
-		}
-	default:
-		respBody, err = xml.Marshal(payload)
-	}
-
+	respBody, err := xmlp.Marshal(payload)
 	if err != nil {
 		logger.Error("sendXmlResponse: failed to marshal XML response body", err)
 		pr.sendXmlErrorResponse(w, http.StatusInternalServerError, utils.ErrorResponseMarshalling, utils.ErrorCodeResponseMarshalling)
@@ -836,12 +894,12 @@ func (pr *ProteusRouter) sendUnauthorizedResponse(w http.ResponseWriter, acceptH
 }
 
 func (pr *ProteusRouter) sendErrorResponse(w http.ResponseWriter, httpCode int, message string, errorCode string, acceptHeader string) {
-	switch acceptHeader {
-	case "application/json":
+	mediaTypes := utils.GetAcceptHeaderMediaTypes(acceptHeader)
+	if mediaTypes["application/json"] {
 		pr.sendJsonErrorResponse(w, httpCode, message, errorCode)
-	case "application/xml":
+	} else if mediaTypes["application/xml"] {
 		pr.sendXmlErrorResponse(w, httpCode, message, errorCode)
-	default:
+	} else {
 		// default to JSON
 		pr.sendJsonErrorResponse(w, httpCode, message, errorCode)
 	}

@@ -52,8 +52,25 @@ func RequestBodyAsMap(reqBody io.ReadCloser, contentType string) (map[string]int
 	return respBodyAsMap, nil
 }
 
+func GetAcceptHeaderMediaTypes(acceptHeader string) map[string]bool {
+	mediaTypes := strings.Split(acceptHeader, ",")
+	mtMap := make(map[string]bool)
+	for _, mediaType := range mediaTypes {
+		mtMap[SanitizeContentType(mediaType)] = true
+	}
+	return mtMap
+}
+
+func GetAcceptHeaderMediaTypesInOrder(acceptHeader string) []string {
+	mediaTypes := strings.Split(acceptHeader, ",")
+	for i, mediaType := range mediaTypes {
+		mediaTypes[i] = SanitizeContentType(mediaType)
+	}
+	return mediaTypes
+}
+
 func SanitizeContentType(contentType string) string {
-	return strings.Split(contentType, ";")[0]
+	return strings.ToLower(strings.Split(contentType, ";")[0])
 }
 
 func CloseSafe(closer io.Closer) {

@@ -9,6 +9,7 @@ import (
 	"github.com/n0rdy/proteus/httpserver/service/auth/basic"
 	"github.com/n0rdy/proteus/httpserver/service/auth/db"
 	"github.com/n0rdy/proteus/httpserver/service/endpoints"
+	"github.com/n0rdy/proteus/httpserver/service/generator"
 	"github.com/n0rdy/proteus/httpserver/service/hints"
 	"github.com/n0rdy/proteus/httpserver/service/smart"
 	"github.com/n0rdy/proteus/logger"
@@ -44,11 +45,14 @@ func Start(port int, conf *common.Conf) {
 	hintsParser := &hints.ProteusHintsParser{}
 	hintsParser.Init(conf)
 
+	randomDataGenerator := &generator.RandomDataGenerator{}
+	restEndpointsGenerator := generator.NewRestEndpointsGenerator(randomDataGenerator)
+
 	portAsString := strconv.Itoa(port)
 	shutdownCh := make(chan struct{})
 	restartCh := make(chan struct{})
 
-	proteusRouter := api.NewProteusRouter(basicAuthService, apiKeyAuthService, smartService, endpointService, hintsParser, shutdownCh, restartCh)
+	proteusRouter := api.NewProteusRouter(basicAuthService, apiKeyAuthService, smartService, endpointService, hintsParser, restEndpointsGenerator, shutdownCh, restartCh)
 	httpRouter := proteusRouter.NewRouter()
 
 	logger.Info("http: starting server at port " + portAsString)

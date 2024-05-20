@@ -1,7 +1,10 @@
 package models
 
 import (
+	"encoding/base64"
+	"github.com/n0rdy/proteus/httpserver/utils"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -16,14 +19,56 @@ type RestEndpoint struct {
 }
 
 type RestEndpointResponseStructure struct {
-	Body    *RestEndpointResponseBody `json:"body,omitempty" xml:"body,omitempty"`
-	Headers []RestEndpointHeader      `json:"headers,omitempty" xml:"headers,omitempty"`
-	Cookies []RestEndpointCookie      `json:"cookies,omitempty" xml:"cookies,omitempty"`
+	Body    []RestEndpointResponseBody `json:"body,omitempty" xml:"body,omitempty"`
+	Headers []RestEndpointHeader       `json:"headers,omitempty" xml:"headers,omitempty"`
+	Cookies []RestEndpointCookie       `json:"cookies,omitempty" xml:"cookies,omitempty"`
+}
+
+func (r *RestEndpointResponseStructure) Get(mediaType string) *RestEndpointResponseBody {
+	if r == nil || r.Body == nil {
+		return nil
+	}
+
+	mt := utils.SanitizeContentType(mediaType)
+	for _, body := range r.Body {
+		if body.ContentType == mt {
+			return &body
+		}
+	}
+	return nil
+}
+
+func (r *RestEndpointResponseStructure) GetMediaTypesAsString() string {
+	if r == nil || r.Body == nil {
+		return ""
+	}
+
+	mediaTypes := make([]string, 0)
+	for _, body := range r.Body {
+		mediaTypes = append(mediaTypes, body.ContentType)
+	}
+	return strings.Join(mediaTypes, ",")
+
 }
 
 type RestEndpointResponseBody struct {
-	AsString string `json:"asString,omitempty" xml:"asString,omitempty"`
-	AsBase64 string `json:"asBase64,omitempty" xml:"asBase64,omitempty"`
+	ContentType string `json:"contentType,omitempty" xml:"contentType,omitempty"`
+	AsString    string `json:"asString,omitempty" xml:"asString,omitempty"`
+	AsBase64    string `json:"asBase64,omitempty" xml:"asBase64,omitempty"`
+}
+
+func (rerb *RestEndpointResponseBody) BodyAsString() (string, string, error) {
+	respBody := ""
+	if rerb.AsString != "" {
+		respBody = rerb.AsString
+	} else if rerb.AsBase64 != "" {
+		decodedString, err := base64.StdEncoding.DecodeString(rerb.AsBase64)
+		if err != nil {
+			return "", "", err
+		}
+		respBody = string(decodedString)
+	}
+	return respBody, rerb.ContentType, nil
 }
 
 type RestEndpointHeader struct {
@@ -34,6 +79,13 @@ type RestEndpointHeader struct {
 type RestEndpointCookie struct {
 	Name  string `json:"name,omitempty" xml:"name,omitempty"`
 	Value string `json:"value,omitempty" xml:"value,omitempty"`
+}
+
+type OpenApiV3Source struct {
+	// only one of the fields should be set as the source of the OpenAPI v3 spec
+	PathToFile string `json:"pathToFile,omitempty" xml:"pathToFile,omitempty"`
+	Url        string `json:"url,omitempty" xml:"url,omitempty"`
+	Content    string `json:"content,omitempty" xml:"content,omitempty"`
 }
 
 type BasicAuthCredentialsInstance struct {

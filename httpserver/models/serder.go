@@ -1,20 +1,19 @@
-package utils
+package models
 
 import (
 	"bytes"
 	"encoding/gob"
-	"github.com/n0rdy/proteus/httpserver/models"
 )
 
 func init() {
-	gob.Register(models.RestEndpoint{})
-	gob.Register(models.SmartInstance{})
+	gob.Register(RestEndpoint{})
+	gob.Register(SmartInstance{})
 	// to support smart endpoints
 	gob.Register([]interface{}{})
 	gob.Register(map[string]interface{}{})
 }
 
-func Serialize[T models.RestEndpoint | models.SmartInstance](obj T) ([]byte, error) {
+func Serialize[T RestEndpoint | SmartInstance](obj T) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 
@@ -25,7 +24,7 @@ func Serialize[T models.RestEndpoint | models.SmartInstance](obj T) ([]byte, err
 	return buf.Bytes(), nil
 }
 
-func Deserialize[T models.RestEndpoint | models.SmartInstance](data []byte, obj *T) error {
+func Deserialize[T RestEndpoint | SmartInstance](data []byte, obj *T) error {
 	buf := bytes.NewBuffer(data)
 	dec := gob.NewDecoder(buf)
 

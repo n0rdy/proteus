@@ -2,7 +2,6 @@ package db
 
 import (
 	"github.com/n0rdy/proteus/httpserver/models"
-	"github.com/n0rdy/proteus/httpserver/utils"
 	"github.com/n0rdy/proteus/logger"
 	commonUtils "github.com/n0rdy/proteus/utils"
 	bolt "go.etcd.io/bbolt"
@@ -50,7 +49,7 @@ func (edb *EndpointsDb) GetAllRest() ([]models.RestEndpoint, error) {
 		b := tx.Bucket(restBucketBytes)
 		return b.ForEach(func(k, v []byte) error {
 			var endpoint models.RestEndpoint
-			err := utils.Deserialize(v, &endpoint)
+			err := models.Deserialize(v, &endpoint)
 			if err != nil {
 				logger.Error("error on deserializing BoltDB value for key: "+string(k), err)
 				return err
@@ -79,7 +78,7 @@ func (edb *EndpointsDb) GetOneRest(method string, path string) (*models.RestEndp
 		if v == nil {
 			return nil
 		}
-		return utils.Deserialize(v, &res)
+		return models.Deserialize(v, &res)
 	})
 
 	if err != nil {
@@ -93,7 +92,7 @@ func (edb *EndpointsDb) GetOneRest(method string, path string) (*models.RestEndp
 }
 
 func (edb *EndpointsDb) InsertOneRest(endpoint models.RestEndpoint) error {
-	serialized, err := utils.Serialize(endpoint)
+	serialized, err := models.Serialize(endpoint)
 	if err != nil {
 		logger.Error("error on serializing REST endpoint: "+endpoint.Path, err)
 		return err

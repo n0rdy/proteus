@@ -4,6 +4,7 @@ import (
 	"github.com/n0rdy/proteus/httpserver/models"
 	"github.com/n0rdy/proteus/httpserver/service/endpoints/db"
 	"github.com/n0rdy/proteus/httpserver/utils"
+	"github.com/n0rdy/proteus/logger"
 	"strings"
 )
 
@@ -34,6 +35,9 @@ func (s *Service) GetRestEndpoint(method string, path string) (*models.RestEndpo
 func (s *Service) AddRestEndpoint(endpoint models.RestEndpoint) error {
 	if s.isReservedPath(endpoint.Path) {
 		return utils.ErrReservedPath
+	}
+	if s.isContentTypeDuplicated(endpoint) {
+		return utils.ErrDuplicatedContentType
 	}
 	return s.edb.InsertOneRest(endpoint)
 }
@@ -66,4 +70,18 @@ func (s *Service) UpdateRestEndpoint(method string, path string, endpoint models
 
 func (s *Service) isReservedPath(path string) bool {
 	return strings.HasPrefix(path, utils.ProteusReservedApiPath) || strings.HasPrefix(path, utils.ProteusHealthcheckPath)
+}
+
+func (s *Service) isContentTypeDuplicated(endpoint models.RestEndpoint) bool {
+	for code, response := range endpoint.Responses {
+		seenMediaTypesForCode := make(map[string]bool)
+		for _, body := range response.Body {
+			if _, exists := seenMediaTypesForCode[body.ContentType]; exists {
+				logger.Error("service: duplicated content type [" + body.ContentType + "] for HTTP status code: [" + code + "]")
+				return true
+			}
+			seenMediaTypesForCode[body.ContentType] = true
+		}
+	}
+	return false
 }

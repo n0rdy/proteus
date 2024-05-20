@@ -3,7 +3,6 @@ package db
 import (
 	"github.com/google/uuid"
 	"github.com/n0rdy/proteus/httpserver/models"
-	"github.com/n0rdy/proteus/httpserver/utils"
 	"github.com/n0rdy/proteus/logger"
 	commonUtils "github.com/n0rdy/proteus/utils"
 	bolt "go.etcd.io/bbolt"
@@ -55,7 +54,7 @@ func (sdb *SmartDb) Get(domainPath string) ([]map[string]interface{}, error) {
 		if v == nil {
 			return nil
 		}
-		return utils.Deserialize(v, &smartInstance)
+		return models.Deserialize(v, &smartInstance)
 	})
 	if err != nil {
 		logger.Error("error on getting value from BoltDB for key: "+domainPath, err)
@@ -77,7 +76,7 @@ func (sdb *SmartDb) GetOne(domainPath string, id string) (map[string]interface{}
 		if v == nil {
 			return nil
 		}
-		return utils.Deserialize(v, &smartInstance)
+		return models.Deserialize(v, &smartInstance)
 	})
 	if err != nil {
 		logger.Error("error on getting value from BoltDB for key: "+domainPath, err)
@@ -101,7 +100,7 @@ func (sdb *SmartDb) InsertOne(domainPath string, reqBody map[string]interface{})
 				Data: make(map[string]map[string]interface{}),
 			}
 		} else {
-			err := utils.Deserialize(v, &smartInstance)
+			err := models.Deserialize(v, &smartInstance)
 			if err != nil {
 				logger.Error("error on deserializing BoltDB value for key: "+domainPath, err)
 				return err
@@ -109,7 +108,7 @@ func (sdb *SmartDb) InsertOne(domainPath string, reqBody map[string]interface{})
 		}
 		smartInstance.Data[id] = reqBody
 
-		serialized, err := utils.Serialize(smartInstance)
+		serialized, err := models.Serialize(smartInstance)
 		if err != nil {
 			logger.Error("error on serializing Smart instance: "+domainPath, err)
 			return err
@@ -136,7 +135,7 @@ func (sdb *SmartDb) UpdateOne(domainPath string, id string, reqBody map[string]i
 			found = false
 			return nil
 		}
-		err = utils.Deserialize(v, &smartInstance)
+		err = models.Deserialize(v, &smartInstance)
 		if err != nil {
 			logger.Error("error on deserializing BoltDB value for key: "+domainPath, err)
 			return err
@@ -146,7 +145,7 @@ func (sdb *SmartDb) UpdateOne(domainPath string, id string, reqBody map[string]i
 			smartInstance.Data[id] = reqBody
 		}
 
-		serialized, err := utils.Serialize(smartInstance)
+		serialized, err := models.Serialize(smartInstance)
 		if err != nil {
 			logger.Error("error on serializing Smart instance: "+domainPath, err)
 			return err
@@ -173,7 +172,7 @@ func (sdb *SmartDb) DeleteOne(domainPath string, id string) (found bool, err err
 			found = false
 			return nil
 		}
-		err = utils.Deserialize(v, &smartInstance)
+		err = models.Deserialize(v, &smartInstance)
 		if err != nil {
 			logger.Error("error on deserializing BoltDB value for key: "+domainPath, err)
 			return err
@@ -185,7 +184,7 @@ func (sdb *SmartDb) DeleteOne(domainPath string, id string) (found bool, err err
 			return nil
 		}
 
-		serialized, err := utils.Serialize(smartInstance)
+		serialized, err := models.Serialize(smartInstance)
 		if err != nil {
 			logger.Error("error on serializing Smart instance: "+domainPath, err)
 			return err
