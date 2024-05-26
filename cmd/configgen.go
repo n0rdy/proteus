@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	_ "embed"
 	"github.com/n0rdy/proteus/cmd/utils"
 	"github.com/n0rdy/proteus/logger"
 	"os"

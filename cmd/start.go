@@ -15,7 +15,10 @@ import (
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the proteus app",
-	Long:  `Start the proteus app.`,
+	Long: `Start the proteus app.
+
+Under the hood, the command starts an HTTP server at the port provided by the "--port" flag 
+or at the default port 14242 if nothing is provided.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		port, err := resolveStartPort(cmd)
 		if err != nil {
