@@ -2,6 +2,8 @@ rest:
   hints:
     statusCode: 200
     responseBody: {
+      # alternative to `plain` is `base64`:
+      # "base64": "eyBcImtleVwiOiBcInZhbHVlXCIgfQ==",
       "plain": "{ \"key\": \"value\" }",
       "contentType": "application/json"
     }
