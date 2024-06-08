@@ -3,6 +3,8 @@ package utils
 import (
 	"encoding/json"
 	"encoding/xml"
+	"fmt"
+	"github.com/n0rdy/proteus/logger"
 	"io"
 	"strings"
 )
@@ -48,6 +50,9 @@ func RequestBodyAsMap(reqBody io.ReadCloser, contentType string) (map[string]int
 		if err != nil {
 			return nil, err
 		}
+	default:
+		logger.Error("unsupported content type: " + contentType)
+		return nil, fmt.Errorf("unsupported content type: %s", contentType)
 	}
 	return respBodyAsMap, nil
 }

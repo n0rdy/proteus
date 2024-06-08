@@ -69,7 +69,7 @@ func (s *Service) UpdateRestEndpoint(method string, path string, endpoint models
 }
 
 func (s *Service) isReservedPath(path string) bool {
-	return strings.HasPrefix(path, utils.ProteusReservedApiPath) || strings.HasPrefix(path, utils.ProteusHealthcheckPath)
+	return strings.HasPrefix(path, utils.ProteusReservedApiPath)
 }
 
 func (s *Service) isContentTypeDuplicated(endpoint models.RestEndpoint) bool {

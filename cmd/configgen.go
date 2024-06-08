@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/n0rdy/proteus/cmd/utils"
 	"github.com/n0rdy/proteus/logger"
+	commonUtils "github.com/n0rdy/proteus/utils"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -31,12 +32,12 @@ Please, make sure to check the content of the generated file and adjust it accor
 		}
 
 		configgenFile := configgenFilePath(pathToDir)
-		err = os.WriteFile(configgenFile, utils.ConfigFileExampleContent, 0644)
+		err = os.WriteFile(configgenFile, commonUtils.ConfigFileExampleContent, 0644)
 		if err != nil {
 			logger.Error("configgen command: error while writing the config file", err)
 			return err
 		}
-		logger.Info("configgen command: config file has been generated successfully at [" + configgenFile + "]  with content:\n" + string(utils.ConfigFileExampleContent))
+		logger.Info("configgen command: config file has been generated successfully at [" + configgenFile + "]  with content:\n" + string(commonUtils.ConfigFileExampleContent))
 		return nil
 	},
 }

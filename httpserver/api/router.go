@@ -66,8 +66,9 @@ func (pr *ProteusRouter) NewRouter() *chi.Mux {
 	// TODO: add HTML page with admin UI
 
 	router.Route("/api/v1/proteus", func(r chi.Router) {
-		r.Route("/http/statuses", func(r chi.Router) {
-			r.HandleFunc("/{status}", pr.handleStatuses)
+		r.Route("/http", func(r chi.Router) {
+			r.HandleFunc("/statuses/{status}", pr.handleStatuses)
+			r.HandleFunc("/mirror", pr.mirrorRequest)
 		})
 
 		r.Route("/auth", func(r chi.Router) {
@@ -100,7 +101,7 @@ func (pr *ProteusRouter) NewRouter() *chi.Mux {
 				r.Post("/sources/openapi/v3", pr.addRestEndpointsFromOpenApiV3)
 			})
 
-			r.Route("/auth/credentials/", func(r chi.Router) {
+			r.Route("/auth/credentials", func(r chi.Router) {
 				r.Route("/basic", func(r chi.Router) {
 					r.Get("/", pr.getAllBasicAuthCreds)
 					r.Post("/", pr.addBasicAuthCreds)
@@ -120,9 +121,10 @@ func (pr *ProteusRouter) NewRouter() *chi.Mux {
 			r.Delete("/shutdown", pr.shutdown)
 		})
 
-		r.HandleFunc("/mirror", pr.mirrorRequest)
-
-		router.Get("/healthcheck", pr.healthCheck)
+		r.Get("/healthcheck", pr.healthCheck)
+		r.Get("/openapi.yaml", pr.getOpenApiSpecAsYaml)
+		r.Get("/swagger-ui.html", pr.getSwaggerUiHtml)
+		http.Handle("/swagger-ui/", http.StripPrefix("/api/v1/proteus/swagger-ui/", http.FileServer(http.FS(commonUtils.SwaggerUiFs))))
 	})
 
 	pr.registerCustomRestEndpoints(router)
@@ -157,9 +159,9 @@ func (pr *ProteusRouter) handleApiKeyAuthProtectedResourceReq(w http.ResponseWri
 	acceptHeader := req.Header.Get("Accept")
 
 	proteusHints := pr.hintsParser.ParseHints(req)
-	if proteusHints == nil || proteusHints.ApiKey == nil {
+	if proteusHints == nil || proteusHints.ApiKey == nil || proteusHints.ApiKey.KeyName == "" {
 		logger.Error("handleApiKeyAuthProtectedResourceReq: no hints provided, that's why there is no way to fetch the API key")
-		pr.sendUnauthorizedResponse(w, acceptHeader)
+		pr.sendBadRequestResponse(w, acceptHeader)
 		return
 	}
 
@@ -557,6 +559,16 @@ func (pr *ProteusRouter) healthCheck(w http.ResponseWriter, req *http.Request) {
 	pr.sendResponse(w, http.StatusOK, healthOk, req.Header.Get("Accept"))
 }
 
+func (pr *ProteusRouter) getOpenApiSpecAsYaml(w http.ResponseWriter, req *http.Request) {
+	w.Header().Add("Content-Type", "application/octet-stream")
+	w.WriteHeader(http.StatusOK)
+	w.Write(commonUtils.OpenApiSpecContent)
+}
+
+func (pr *ProteusRouter) getSwaggerUiHtml(w http.ResponseWriter, req *http.Request) {
+	http.ServeFile(w, req, "swagger-ui/swagger-ui.html")
+}
+
 func (pr *ProteusRouter) shutdown(w http.ResponseWriter, req *http.Request) {
 	pr.shutdownCh <- struct{}{}
 	pr.sendNoContentResponse(w)
@@ -932,6 +944,10 @@ func (pr *ProteusRouter) sendResponseFromString(w http.ResponseWriter, httpCode 
 	if respBody != "" {
 		w.Write([]byte(respBody))
 	}
+}
+
+func (pr *ProteusRouter) sendBadRequestResponse(w http.ResponseWriter, acceptHeader string) {
+	pr.sendResponse(w, http.StatusBadRequest, forStatusCode(http.StatusUnauthorized), acceptHeader)
 }
 
 func (pr *ProteusRouter) sendUnauthorizedResponse(w http.ResponseWriter, acceptHeader string) {

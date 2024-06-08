@@ -1,0 +1,2696 @@
+openapi: 3.1.0
+info:
+  title: Proteus API
+  version: 0.0.1
+  description: |
+    There are several important Proteus API concepts that are important to understand:
+    
+    1. Response hints
+    
+    Most of Proteus API endpoints use the default responses defined by Proteus app.
+    However, there is a way to define custom responses via the mechanism of the response hints.
+    
+    You can provide hints via the dedicated query params, headers, cookies, and the Proteus init config file.
+    If more than one hints source is provided, the priority is as follows: query params > headers > cookies > Proteus init config file.
+    
+    There are several hints that can be provided:
+    
+    - status code:
+    Provide the HTTP status code to return.
+    It can be provided via the query param `proteus_status_code`, header `X-Proteus-Status-Code` or cookie `proteus_status_code`.
+    
+    - response body:
+    Provide the response body as a string.
+    It can be provided via the query param `proteus_response_body`, header `X-Proteus-Response-Body` or cookie `proteus_response_body`.
+    
+    - response body base64:
+    Provide the response body as a base64 encoded string.
+    It can be provided via the query param `proteus_response_body_base64`, header `X-Proteus-Response-Body-Base64` or cookie `proteus_response_body_base64`.
+    
+    - response content type:
+    Provide the response content type. If the body is provided, make sure it follows the content type.
+    It can be provided via the query param `proteus_response_content_type`, header `X-Proteus-Response-Content-Type` or cookie `proteus_response_content_type`.
+    
+    - redirect location:
+    Provide the location for the redirect if the status code is either 301, 302, 303, 307 or 308.
+    For other status codes, this hint is ignored.
+    It can be provided via the query param `proteus_redirect_location`, header `X-Proteus-Redirect-Location` or cookie `proteus_redirect_location`.
+    
+    - wait ms:
+    Provide the number of milliseconds to wait before sending the response.
+    It can be handy if you want to simulate a slow response.
+    It can be provided via the query param `proteus_wait_ms`, header `X-Proteus-Wait-Ms` or cookie `proteus_wait_ms`.
+    
+    - API key name:
+    If the resource is protected by an API key, the hint provides the name of the API key to use.
+    The expected API key value will be fetched from the DB by the provided name.
+    It can be provided via the query param `proteus_api_key_name`, header `X-Proteus-Api-Key-Name` or cookie `proteus_api_key_name`.
+    
+    - API key location:
+    If the resource is protected by an API key, the hint provides the location of the API key.
+    It can be either "query" or "header", other values are ignored.
+    It can be provided via the query param `proteus_api_key_location`, header `X-Proteus-Api-Key-Location` or cookie `proteus_api_key_location`.
+    
+    - API key value format:
+    If the resource is protected by an API key, the hint provides the format of the API key value.
+    It can be either "plain" or "base64", other values are ignored.
+    It can be provided via the query param `proteus_api_key_value_format`, header `X-Proteus-Api-Key-Value-Format` or cookie `proteus_api_key_value_format`.
+    
+    - API key value parser regexp pattern (Base64 encoded):
+    If the resource is protected by an API key, the hint provides the regexp pattern to parse the value.
+    It can be handy if the value is provided, for example, with some prefix that is not part of the actual key, like: "ApiKey: <key>"
+    It can be provided via the query param `proteus_api_key_value_parser_regexp_base64`, header `X-Proteus-Api-Key-Value-Parser-Regexp-Base64` or cookie `proteus_api_key_value_parser_regexp_base64`.
+    
+    2. Smart endpoints
+    
+    The idea is to simplify and mimic the behavior of the RESTful API for CRUD operations.
+    It easier to explain the concept with an example.
+    
+    Imagine you have a RESTful API with the CRUD operations for the "books" resource:
+    - GET /api/v1/books
+    - POST /api/v1/books
+    - DELETE /api/v1/books
+    - GET /api/v1/books/{id}
+    - PUT /api/v1/books/{id}
+    - DELETE /api/v1/books/{id}
+    
+    PATCH endpoints are not supported by the smart endpoints, as Proteus does not have a way to define the partial updates.
+    
+    If you use the smart endpoints for your Books API, you can do the following:
+    1) call the `POST /api/v1/proteus/smart/api/v1/books` with the request body to create a new book, e.g.: `{"title": "The lord of the rings", "author": "J.R.R. Tolkien"}`
+    As a response, you will get the ID of the newly created book in a UUID format, e.g.: `{ "id": "f7b3b2b4-4b3b-4b3b-4b3b-4b3b4b3b4b3b" }`
+    
+    2) call the `GET /api/v1/proteus/smart/api/v1/books` to get all the books.
+    As a response, you will get the list of all the books, e.g.: `[{"title": "The lord of the rings", "author": "J.R.R. Tolkien", "proteusExternalSmartId": "f7b3b2b4-4b3b-4b3b-4b3b-4b3b4b3b4b3b"}]`
+    Note that the original objects are returned with the additional field `proteusExternalSmartId` that contains the ID of the object.
+    
+    3) call the `GET /api/v1/proteus/smart/api/v1/books/{id}` to get just created book by its ID from the previous step, e.g.: `f7b3b2b4-4b3b-4b3b-4b3b-4b3b4b3b4b3b`
+    As a response, you will get the book details, e.g.: `{"title": "The lord of the rings", "author": "J.R.R. Tolkien", "proteusExternalSmartId": "f7b3b2b4-4b3b-4b3b-4b3b-4b3b4b3b4b3b"}`
+    
+    4) call the `PUT /api/v1/proteus/smart/api/v1/books/{id}` with the request body to update the book by its ID from the previous step, e.g.: `{"title": "The lord of the rings", "author": "J.R.R. Tolkien", "year": 1954}`
+    As a response, you'll get 204 (No Content) status code.
+    If you try to fetch the book details again, you'll see the updated book details.
+    
+    5) call the `DELETE /api/v1/proteus/smart/api/v1/books/{id}` to delete the book by its ID from the previous step, e.g.: `f7b3b2b4-4b3b-4b3b-4b3b-4b3b4b3b4b3b`
+    As a response, you'll get 204 (No Content) status code. The book will be deleted.
+    
+    6) call the `DELETE /api/v1/proteus/smart/api/v1/books` to delete all the books.
+    As a response, you'll get 204 (No Content) status code. All the books will be deleted.
+    
+    Under the hood, Proteus parses the URL to understand which resource is requested. 
+    That's why if you, for example, decide to use the smart endpoints for the "authors" resource, you can do it without any additional configuration:
+    just call the `POST /api/v1/proteus/smart/api/v1/authors` (or any other suffix instead of the `/api/v1/authors`) with the request body to create a new author, e.g.: `{"name": "J.R.R. Tolkien"}`
+    
+    Basically, as everything after the `/api/v1/proteus/smart` part is considered as the resource name, you can use the smart endpoints for any resource you want.
+    This can be quite handy if the API you are mocking uses the RESTful API approach.
+    
+    Some limitations, though: 
+    - only `application/json` and `application/xml` content types are supported, make sure you specify them via the `Accept` and `Content-Type` headers while making the requests.
+
+servers:
+  - url: http://localhost:14242
+    description: |
+      The local Proteus server.
+      `14242` port is used by default, but you can change it via the Proteus init config file or the `--port` CLI option when starting the Proteus server.
+
+tags:
+  - name: HTTP
+    description: Endpoints for the standard Proteus HTTP protocol-related operations
+  - name: Auth
+    description: Endpoints for the standard Proteus protected resources
+  - name: Smart
+    description: A so-called "smart" endpoints that can mimic the behavior of the RESTful API for CRUD operations
+  - name: Admin
+    description: Endpoints for the Proteus admin operations
+  - name: Health
+    description: Endpoints for the Proteus healthcheck operations
+  - name: Docs
+    description: Endpoints to get the Proteus API documentation
+  - name: Other
+    description: Other endpoints that do not fit into the other categories
+
+paths:
+  /api/v1/proteus/http/statuses/{status}:
+    # this path supports any HTTP method, GET is used as an example
+    get:
+      summary: Gets the response for the given HTTP status code
+      operationId: getForHttpStatus
+      tags:
+        - HTTP
+      description: |
+        Use this endpoint to get the response for the HTTP status code provided in the path.
+        GET HTTP method is used as an example, but any other HTTP method can be also used.
+        
+        Proteus defines a set of responses for the most common HTTP status codes.
+        However, there is a way to define custom responses via the mechanism of the response hints.
+        The list of supported hints for this endpoint:
+        
+        - response body 
+        - response body base64
+        - response content type
+        - redirect location
+        - wait ms
+      parameters:
+        - $ref: '#/components/parameters/HttpStatusPathParam'
+        # response hints:
+        - $ref: '#/components/parameters/ProteusRedirectLocationQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64QueryParam'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeQueryParam'
+        - $ref: '#/components/parameters/ProteusWaitMsQueryParam'
+        - $ref: '#/components/parameters/ProteusRedirectLocationHeader'
+        - $ref: '#/components/parameters/ProteusResponseBodyHeader'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64Header'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeHeader'
+        - $ref: '#/components/parameters/ProteusWaitMsHeader'
+      responses:
+        100:
+          $ref: '#/components/responses/101ContinueResponse'
+        101:
+          $ref: '#/components/responses/101SwitchingProtocolsResponse'
+        102:
+          $ref: '#/components/responses/102ProcessingResponse'
+        103:
+          $ref: '#/components/responses/103EarlyHintsResponse'
+        200:
+          $ref: '#/components/responses/200OkResponse'
+        201:
+          $ref: '#/components/responses/201CreatedResponse'
+        202:
+          $ref: '#/components/responses/202AcceptedResponse'
+        203:
+          $ref: '#/components/responses/203NonAuthoritativeInformationResponse'
+        204:
+          description: Default response for the 204 (No Content) status code
+        205:
+          $ref: '#/components/responses/205ResetContentResponse'
+        206:
+          $ref: '#/components/responses/206PartialContentResponse'
+        207:
+          $ref: '#/components/responses/207MultiStatusResponse'
+        208:
+          $ref: '#/components/responses/208AlreadyReportedResponse'
+        226:
+          $ref: '#/components/responses/226IAmUsedResponse'
+        300:
+          $ref: '#/components/responses/300MultipleChoicesResponse'
+        301:
+          $ref: '#/components/responses/301MovedPermanentlyResponse'
+        302:
+          $ref: '#/components/responses/302FoundResponse'
+        303:
+          $ref: '#/components/responses/303SeeOtherResponse'
+        304:
+          $ref: '#/components/responses/304NotModifiedResponse'
+        305:
+          $ref: '#/components/responses/305UseProxyResponse'
+        306:
+          $ref: '#/components/responses/306SwitchProxyResponse'
+        307:
+          $ref: '#/components/responses/307TemporaryRedirectResponse'
+        308:
+          $ref: '#/components/responses/308PermanentRedirectResponse'
+        400:
+          $ref: '#/components/responses/400BadRequestResponse'
+        401:
+          $ref: '#/components/responses/401UnauthorizedResponse'
+        402:
+          $ref: '#/components/responses/402PaymentRequiredResponse'
+        403:
+          $ref: '#/components/responses/403ForbiddenResponse'
+        404:
+          $ref: '#/components/responses/404NotFoundResponse'
+        405:
+          $ref: '#/components/responses/405MethodNotAllowedResponse'
+        406:
+          $ref: '#/components/responses/406NotAcceptableResponse'
+        407:
+          $ref: '#/components/responses/407ProxyAuthenticationRequiredResponse'
+        408:
+          $ref: '#/components/responses/408RequestTimeoutResponse'
+        409:
+          $ref: '#/components/responses/409ConflictResponse'
+        410:
+          $ref: '#/components/responses/410GoneResponse'
+        411:
+          $ref: '#/components/responses/411LengthRequiredResponse'
+        412:
+          $ref: '#/components/responses/412PreconditionFailedResponse'
+        413:
+          $ref: '#/components/responses/413RequestEntityTooLargeResponse'
+        414:
+          $ref: '#/components/responses/414RequestURITooLongResponse'
+        415:
+          $ref: '#/components/responses/415UnsupportedMediaTypeResponse'
+        416:
+          $ref: '#/components/responses/416RequestedRangeNotSatisfiableResponse'
+        417:
+          $ref: '#/components/responses/417ExpectationFailedResponse'
+        418:
+          $ref: '#/components/responses/418ImATeapotResponse'
+        421:
+          $ref: '#/components/responses/421MisdirectedRequestResponse'
+        422:
+          $ref: '#/components/responses/422UnprocessableEntityResponse'
+        423:
+          $ref: '#/components/responses/423LockedResponse'
+        424:
+          $ref: '#/components/responses/424FailedDependencyResponse'
+        425:
+          $ref: '#/components/responses/425TooEarlyResponse'
+        426:
+          $ref: '#/components/responses/426UpgradeRequiredResponse'
+        428:
+          $ref: '#/components/responses/428PreconditionRequiredResponse'
+        429:
+          $ref: '#/components/responses/429TooManyRequestsResponse'
+        431:
+          $ref: '#/components/responses/431RequestHeaderFieldsTooLargeResponse'
+        451:
+          $ref: '#/components/responses/451UnavailableForLegalReasonsResponse'
+        500:
+          $ref: '#/components/responses/500InternalServerErrorResponse'
+        501:
+          $ref: '#/components/responses/501NotImplementedResponse'
+        502:
+          $ref: '#/components/responses/502BadGatewayResponse'
+        503:
+          $ref: '#/components/responses/503ServiceUnavailableResponse'
+        504:
+          $ref: '#/components/responses/504GatewayTimeoutResponse'
+        505:
+          $ref: '#/components/responses/505HTTPVersionNotSupportedResponse'
+        506:
+          $ref: '#/components/responses/506VariantAlsoNegotiatesResponse'
+        507:
+          $ref: '#/components/responses/507InsufficientStorageResponse'
+        508:
+          $ref: '#/components/responses/508LoopDetectedResponse'
+        510:
+          $ref: '#/components/responses/510NotExtendedResponse'
+        511:
+          $ref: '#/components/responses/511NetworkAuthenticationRequiredResponse'
+
+  /api/v1/proteus/http/mirror:
+    # this path supports any HTTP method, GET is used as an example
+    get:
+      summary: Mirrors the request and returns it back as a response
+      operationId: mirrorRequest
+      tags:
+        - HTTP
+      description: |
+        Use this endpoint to mirror the request and return it back as a response.
+        This means that the request body will be returned as the response body,
+        while the request headers and cookies will be returned as the response headers and cookies respectively.
+        Status code is always 200 (OK).
+      responses:
+        200:
+          description: |
+            Mirrors request body if provided.
+            Any content type is supported, as the endpoint returns the request body as is.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+
+  /api/v1/proteus/auth/basic/resource:
+    # this path supports any HTTP method, GET is used as an example
+    get:
+      summary: Protected resource that requires basic authentication
+      operationId: getProtectedResource
+      tags:
+        - Auth
+      description: |
+        This endpoint, as well as any of its subpaths, require basic authentication.
+        GET HTTP method is used as an example, but any other HTTP method can be also used.
+        
+        The credentials are configured via the dedicated admin endpoints, see `/api/v1/proteus/admin/auth/credentials/basic` and its subpaths for more details.
+        If the credentials are not provided or wrong, the 401 (Unauthorized) status code is returned with the default response body.
+        
+        By default, 200 (OK) status code is returned with the default response body.
+        However, you can provide custom response hints to tweak the response.
+        The list of supported hints for this endpoint:
+        
+        - status code
+        - response body 
+        - response body base64
+        - response content type
+        - wait ms
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        # response hints:
+        - $ref: '#/components/parameters/ProteusStatusCodeQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64QueryParam'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeQueryParam'
+        - $ref: '#/components/parameters/ProteusWaitMsQueryParam'
+        - $ref: '#/components/parameters/ProteusStatusCodeHeader'
+        - $ref: '#/components/parameters/ProteusResponseBodyHeader'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64Header'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeHeader'
+        - $ref: '#/components/parameters/ProteusWaitMsHeader'
+      responses:
+        200:
+          description: |
+            A default Proteus protected resource response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtectedResourceResponse'
+        401:
+          $ref: '#/components/responses/401UnauthorizedResponse'
+
+  /api/v1/proteus/auth/basic/resource/{anyPath}:
+    # this path supports any HTTP method, GET is used as an example
+    get:
+      summary: Protected resource that requires basic authentication
+      operationId: getProtectedResource
+      tags:
+        - Auth
+      description: |
+        This endpoint specifies that any path after the `/api/v1/proteus/auth/basic/resource/` part can be used.
+        
+        This endpoint requires basic authentication.
+        GET HTTP method is used as an example, but any other HTTP method can be also used.
+
+        The credentials are configured via the dedicated admin endpoints, see `/api/v1/proteus/admin/auth/credentials/basic` and its subpaths for more details.
+        If the credentials are not provided or wrong, the 401 (Unauthorized) status code is returned with the default response body.
+
+        By default, 200 (OK) status code is returned with the default response body.
+        However, you can provide custom response hints to tweak the response.
+        The list of supported hints for this endpoint:
+
+        - status code
+        - response body 
+        - response body base64
+        - response content type
+        - wait ms
+      parameters:
+        - $ref: '#/components/parameters/AnyPath'
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        # response hints:
+        - $ref: '#/components/parameters/ProteusResponseBodyQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64QueryParam'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeQueryParam'
+        - $ref: '#/components/parameters/ProteusWaitMsQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyHeader'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64Header'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeHeader'
+        - $ref: '#/components/parameters/ProteusWaitMsHeader'
+      responses:
+        200:
+          description: |
+            A default Proteus protected resource response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtectedResourceResponse'
+        401:
+          $ref: '#/components/responses/401UnauthorizedResponse'
+
+  /api/v1/proteus/auth/apikey/resource:
+    # this path supports any HTTP method, GET is used as an example
+    get:
+      summary: Protected resource that requires API key authentication
+      operationId: getProtectedResourceWithApiKey
+      tags:
+        - Auth
+      description: |
+        This endpoint, as well as any of its subpaths, requires the API key authentication.
+        GET HTTP method is used as an example, but any other HTTP method can be also used.
+        
+        The API key is configured via the dedicated admin endpoints, see `/api/v1/proteus/admin/auth/credentials/apikey` and its subpaths for more details.
+        If the API key is not provided or wrong, the 401 (Unauthorized) status code is returned with the default response body.
+        
+        At least, the API key name response hint must be provided to let the Proteus know which API key to use.
+        If it is not provided, the 400 (Bad Request) status code is returned with the default response body.
+        If no API key location is provided, the default location is "header".
+        If API key is Base64 encoded, it will decoded first before applying the regexp pattern provided via the response hint.
+        
+        By default, 200 (OK) status code is returned with the default response body.
+        However, you can provide custom response hints to tweak the response.
+        The list of supported hints for this endpoint:
+        
+        - API key name
+        - API key location
+        - API key value format
+        - API key value parser regexp pattern (Base64 encoded)
+        - status code
+        - response body 
+        - response body base64
+        - response content type
+        - wait ms
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        # response hints:
+        - $ref: '#/components/parameters/ProteusApiKeyNameHeader'
+        - $ref: '#/components/parameters/ProteusApiKeyLocationHeader'
+        - $ref: '#/components/parameters/ProteusApiKeyValueFormatHeader'
+        - $ref: '#/components/parameters/ProteusApiKeyValueParserRegexpBase64Header'
+        - $ref: '#/components/parameters/ProteusApiKeyNameQueryParam'
+        - $ref: '#/components/parameters/ProteusApiKeyLocationQueryParam'
+        - $ref: '#/components/parameters/ProteusApiKeyValueFormatQueryParam'
+        - $ref: '#/components/parameters/ProteusApiKeyValueParserRegexpBase64QueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64QueryParam'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeQueryParam'
+        - $ref: '#/components/parameters/ProteusWaitMsQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyHeader'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64Header'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeHeader'
+        - $ref: '#/components/parameters/ProteusWaitMsHeader'
+      responses:
+        200:
+          description: |
+            A default Proteus protected resource response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtectedResourceResponse'
+        400:
+          $ref: '#/components/responses/400BadRequestResponse'
+        401:
+          $ref: '#/components/responses/401UnauthorizedResponse'
+
+  /api/v1/proteus/auth/apikey/resource/{anyPath}:
+    # this path supports any HTTP method, GET is used as an example
+    get:
+      summary: Protected resource that requires API key authentication
+      operationId: getProtectedResourceWithApiKey
+      tags:
+        - Auth
+      description: |
+        This endpoint specifies that any path after the `/api/v1/proteus/auth/apikey/resource/` part can be used.
+        
+        This endpoint requires the API key authentication.
+        GET HTTP method is used as an example, but any other HTTP method can be also used.
+
+        The API key is configured via the dedicated admin endpoints, see `/api/v1/proteus/admin/auth/credentials/apikey` and its subpaths for more details.
+        If the API key is not provided or wrong, the 401 (Unauthorized) status code is returned with the default response body.
+
+        At least, the API key name response hint must be provided to let the Proteus know which API key to use.
+        If it is not provided, the 400 (Bad Request) status code is returned with the default response body.
+        If no API key location is provided, the default location is "header".
+        If API key is Base64 encoded, it will decoded first before applying the regexp pattern provided via the response hint.
+
+        By default, 200 (OK) status code is returned with the default response body.
+        However, you can provide custom response hints to tweak the response.
+        The list of supported hints for this endpoint:
+
+        - API key name
+        - API key location
+        - API key value format
+        - API key value parser regexp pattern (Base64 encoded)
+        - status code
+        - response body 
+        - response body base64
+        - response content type
+        - wait ms
+      parameters:
+        - $ref: '#/components/parameters/AnyPath'
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        # response hints:
+        - $ref: '#/components/parameters/ProteusApiKeyNameHeader'
+        - $ref: '#/components/parameters/ProteusApiKeyLocationHeader'
+        - $ref: '#/components/parameters/ProteusApiKeyValueFormatHeader'
+        - $ref: '#/components/parameters/ProteusApiKeyValueParserRegexpBase64Header'
+        - $ref: '#/components/parameters/ProteusApiKeyNameQueryParam'
+        - $ref: '#/components/parameters/ProteusApiKeyLocationQueryParam'
+        - $ref: '#/components/parameters/ProteusApiKeyValueFormatQueryParam'
+        - $ref: '#/components/parameters/ProteusApiKeyValueParserRegexpBase64QueryParam'
+        - $ref: '#/components/parameters/ProteusStatusCodeQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64QueryParam'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeQueryParam'
+        - $ref: '#/components/parameters/ProteusWaitMsQueryParam'
+        - $ref: '#/components/parameters/ProteusStatusCodeHeader'
+        - $ref: '#/components/parameters/ProteusResponseBodyHeader'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64Header'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeHeader'
+        - $ref: '#/components/parameters/ProteusWaitMsHeader'
+      responses:
+        200:
+          description: |
+            A default Proteus protected resource response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtectedResourceResponse'
+        400:
+          $ref: '#/components/responses/400BadRequestResponse'
+        401:
+          $ref: '#/components/responses/401UnauthorizedResponse'
+
+  /api/v1/proteus/smart:
+    delete:
+      summary: Deletes all the existing smart entities from the database
+      operationId: deleteAllSmartEntities
+      tags:
+        - Smart
+      description: |
+        Use this endpoint to delete all the existing smart entities from the database once they are no longer needed.
+      responses:
+        204:
+          description: All the smart entities have been successfully deleted.
+
+  /api/v1/proteus/smart/{anyPath}:
+    get:
+      summary: Gets either all the smart entities or the specific smart entity by its ID
+      operationId: getSmartEntities
+      tags:
+        - Smart
+      description: |
+        Read the "Smart endpoints" section in the OpenAPI description to understand the concept of the smart endpoints.
+        
+        Use this endpoint to get either all the smart entities or the specific smart entity by its ID.
+        If the ID is provided, the specific smart entity will be returned.
+        If the ID is not provided, all the smart entities will be returned.
+        
+        Proteus checks whether the ID is provided by parsing the path and checking if the last part is a valid UUID.
+        If it is, it is considered as the ID and used to fetch the specific smart entity.
+        Otherwise, the entire subpath after the `/api/v1/proteus/smart/` part is considered as the resource name, so the list of all the related smart entities is returned.
+        
+        If the ID was provided, but the smart entity with this ID does not exist, the 404 (Not Found) status code is returned with the default response body.
+        If the resource name was provided, but there are no smart entities for this resource, the 200 (OK) status code is returned with an empty list as a response body.
+        
+        If nothing is provided after the `/api/v1/proteus/smart/` part, the 404 (Not Found) status code is returned with the default response body.
+      parameters:
+        - $ref: '#/components/parameters/AnyPath'
+      responses:
+        200:
+          description: |
+            A list of all the smart entities or the specific smart entity by its ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        404:
+          $ref: '#/components/responses/SmartEntityNotFoundResponse'
+
+    post:
+      summary: Creates a new smart entity
+      operationId: createSmartEntity
+      tags:
+        - Smart
+      description: |
+        Read the "Smart endpoints" section in the OpenAPI description to understand the concept of the smart endpoints.
+        
+        Use this endpoint to create a new smart entity.
+        The request body must be provided.
+        
+        Proteus checks whether the request body is provided.
+        If it is, the new smart entity is created and the ID of the newly created entity is returned.
+        If the request body is not provided, the 400 (Bad Request) status code is returned with the default response body.
+        
+        Only `application/json` and `application/xml` content types are supported.
+        If the content type is not provided or not supported, the 400 (Bad Request) status code is returned with the default response body.
+        
+        The subpath after the `/api/v1/proteus/smart/` part is considered as the resource name, and will be used to create the new smart entity.
+        Make sure to use the same resource name for other CRUD operations with this entity.
+        
+        Make sure that your entity name is not a valid UUID, otherwise, Proteus won't be able to distinguish between the ID and the resource name.
+      parameters:
+        - $ref: '#/components/parameters/AnyPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/AnyRequest'
+      responses:
+        201:
+          description: |
+            The response with the ID of the newly created smart entity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmartCreatedResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/SmartCreatedResponse'
+        400:
+          $ref: '#/components/responses/InvalidRequestBodyResponse'
+
+    delete:
+      summary: Deletes all the smart entities for the given resource or the specific smart entity by its ID
+      operationId: deleteSmartEntities
+      tags:
+        - Smart
+      description: |
+        Read the "Smart endpoints" section in the OpenAPI description to understand the concept of the smart endpoints.
+        
+        Use this endpoint to delete either all the smart entities or the specific smart entity by its ID.
+        If the ID is provided, the specific smart entity will be deleted.
+        If the ID is not provided, all the smart entities will be deleted.
+        
+        If nothing was found for the given resource or ID, the 404 (Not Found) status code is returned with the default response body.
+      parameters:
+        - $ref: '#/components/parameters/AnyPath'
+      responses:
+        204:
+          description: All the smart entities for the given resource have been successfully deleted.
+        404:
+          $ref: '#/components/responses/SmartEntityNotFoundResponse'
+
+    put:
+      summary: Updates the specific smart entity by its ID
+      operationId: updateSmartEntity
+      tags:
+        - Smart
+      description: |
+        Read the "Smart endpoints" section in the OpenAPI description to understand the concept of the smart endpoints.
+        
+        Use this endpoint to update the specific smart entity by its ID.
+        The request body must be provided.
+        
+        Proteus checks whether the request body is provided.
+        If it is, the specific smart entity is updated.
+        If the request body is not provided, the 400 (Bad Request) status code is returned with the default response body.
+        
+        Only `application/json` and `application/xml` content types are supported.
+        If the content type is not provided or not supported, the 400 (Bad Request) status code is returned with the default response body.
+        
+        If the smart entity with this ID does not exist or ID is not provided, the 404 (Not Found) status code is returned with the default response body.
+      parameters:
+        - $ref: '#/components/parameters/AnyPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyRequest'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/AnyRequest'
+      responses:
+        204:
+          description: The specific smart entity has been successfully updated.
+        400:
+          $ref: '#/components/responses/InvalidRequestBodyResponse'
+        404:
+          $ref: '#/components/responses/SmartEntityNotFoundResponse'
+
+  /api/v1/proteus/admin/rest/endpoints:
+    get:
+      summary: Gets the list of the custom REST endpoints created via the Proteus admin API
+      operationId: getCustomRestEndpoints
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to get the list of the custom REST endpoints created via the Proteus admin API.
+        All of these endpoints are available to be called.
+      responses:
+        200:
+          description: |
+            The list of the custom REST endpoints created via the Proteus admin API.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestEndpoints'
+
+      post:
+        summary: Creates a new custom REST endpoint
+        operationId: createCustomRestEndpoint
+        tags:
+          - Admin
+        description: |
+          Use this endpoint to create a new custom REST endpoint.
+          The request body must be provided.
+          
+          Only `application/json` content type is supported.
+          If the content type is not provided or not supported, the 400 (Bad Request) status code is returned with the default response body.
+          
+          If the path of the new custom REST endpoint is reserved by Proteus (has the `/api/v1/proteus` prefix), the 400 (Bad Request) status code is returned with the default response body.
+          If the path of the new custom REST endpoint is already used by another custom REST endpoint, the previous one will be overwritten.
+          
+          If within the provided structure of the REST endpoint there is a duplicate of the content types for the same HTTP code, the 400 (Bad Request) status code is returned with the default response body.
+          
+          Proteus server will be restarted after the new custom REST endpoint is created.
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+              $ref: '#/components/schemas/AnyRequest'
+        responses:
+          204:
+            description: The new custom REST endpoint has been successfully created.
+          400:
+            $ref: '#/components/responses/InvalidRequestBodyResponse'
+
+    delete:
+      summary: Deletes all the custom REST endpoints created via the Proteus admin API
+      operationId: deleteAllCustomRestEndpoints
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to delete all the custom REST endpoints created via the Proteus admin API once they are no longer needed.
+        
+        Proteus server will be restarted after all the custom REST endpoints are deleted.
+      responses:
+        204:
+          description: All the custom REST endpoints have been successfully deleted.
+
+  /api/v1/proteus/admin/rest/endpoints/{httpMethod}/{anyPath}:
+    get:
+      summary: Gets the custom REST endpoint for the given HTTP method and path
+      operationId: getCustomRestEndpoint
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to get the custom REST endpoint for the given HTTP method and path.
+        The path can be any path, but it must be unique.
+        The HTTP method can be any HTTP method.
+        
+        Example of the request path for the `GET /api/v1/books` custom REST endpoint: `/api/v1/proteus/admin/rest/endpoints/GET/api/v1/books`
+        
+        If the custom REST endpoint for the given HTTP method and path does not exist, the 404 (Not Found) status code is returned with the default response body.
+        If either the HTTP method or path is not provided, the 400 (Bad Request) status code is returned with the default response body.
+      parameters:
+        - $ref: '#/components/parameters/HttpMethodPathParam'
+        - $ref: '#/components/parameters/AnyPath'
+      responses:
+        200:
+          description: |
+            The custom REST endpoint for the given HTTP method and path.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        400:
+          $ref: '#/components/responses/InvalidRestEndpointPathResponse'
+        404:
+          $ref: '#/components/responses/ProteusNotFoundResponse'
+
+    put:
+      summary: Updates the custom REST endpoint for the given HTTP method and path
+      operationId: updateCustomRestEndpoint
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to update the custom REST endpoint for the given HTTP method and path.
+        The request body must be provided.
+        
+        Only `application/json` content type is supported.
+        If the content type is not provided or not supported, the 400 (Bad Request) status code is returned with the default response body.
+        
+        If the custom REST endpoint for the given HTTP method and path does not exist, the 404 (Not Found) status code is returned with the default response body.
+        If either the HTTP method or path is not provided, the 400 (Bad Request) status code is returned with the default response body.
+        
+        Proteus server will be restarted after the custom REST endpoint is updated.
+      parameters:
+        - $ref: '#/components/parameters/HttpMethodPathParam'
+        - $ref: '#/components/parameters/AnyPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RestEndpoint'
+      responses:
+        204:
+          description: The custom REST endpoint for the given HTTP method and path has been successfully updated.
+        400:
+          $ref: '#/components/responses/InvalidRequestBodyResponse'
+        404:
+          $ref: '#/components/responses/ProteusNotFoundResponse'
+
+    delete:
+      summary: Deletes the custom REST endpoint for the given HTTP method and path
+      operationId: deleteCustomRestEndpoint
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to delete the custom REST endpoint for the given HTTP method and path.
+        
+        If the custom REST endpoint for the given HTTP method and path does not exist, the 404 (Not Found) status code is returned with the default response body.
+        If either the HTTP method or path is not provided, the 400 (Bad Request) status code is returned with the default response body.
+        
+        Proteus server will be restarted after the custom REST endpoint is deleted.
+      parameters:
+        - $ref: '#/components/parameters/HttpMethodPathParam'
+        - $ref: '#/components/parameters/AnyPath'
+      responses:
+        204:
+          description: The custom REST endpoint for the given HTTP method and path has been successfully deleted.
+        400:
+          $ref: '#/components/responses/InvalidRestEndpointPathResponse'
+        404:
+          $ref: '#/components/responses/ProteusNotFoundResponse'
+
+  /api/v1/proteus/admin/rest/endpoints/sources/swagger/v2:
+    post:
+      summary: Creates new custom REST endpoints from the provided Swagger v2 specification
+      operationId: createCustomRestEndpointsFromSwaggerV2
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to create new custom REST endpoints from the provided Swagger v2 specification.
+        If you are using OpenAPI v3 specification, use the `POST /api/v1/proteus/admin/rest/endpoints/sources/openapi/v3` endpoint instead.
+        
+        Proteus accepts 3 different sources of the Swagger v2 specification:
+        - from the file on your local machine via the `pathToFile` property of the request body
+        - from the URL via the `url` property of the request body
+        - from the request body directly via the `content` property of the request body
+        
+        Only 1 of these sources must be provided, otherwise, the 400 (Bad Request) status code is returned with the default response body.
+        
+        Not all the features of the Swagger v2 specification are supported by Proteus: for example, `oneOf`, `anyOf`, `allOf`, etc. are not supported and will be ignored.
+        Try it out to see if your Swagger v2 specification works with Proteus.
+        Check logs for more details if something goes wrong.
+        
+        Proteus server will be restarted after the new custom REST endpoints are created.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenApiSwaggerSource'
+      responses:
+        204:
+          description: The new custom REST endpoints have been successfully created.
+        400:
+          $ref: '#/components/responses/InvalidRequestBodyResponse'
+
+  /api/v1/proteus/admin/rest/endpoints/sources/openapi/v3:
+    post:
+      summary: Creates new custom REST endpoints from the provided OpenAPI v3 specification
+      operationId: createCustomRestEndpointsFromOpenApiV3
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to create new custom REST endpoints from the provided OpenAPI v3 specification.
+        If you are using Swagger v2 specification, use the `POST /api/v1/proteus/admin/rest/endpoints/sources/swagger/v2` endpoint instead.
+        
+        Proteus accepts 3 different sources of the OpenAPI v3 specification:
+        - from the file on your local machine via the `pathToFile` property of the request body
+        - from the URL via the `url` property of the request body
+        - from the request body directly via the `content` property of the request body
+        
+        Only 1 of these sources must be provided, otherwise, the 400 (Bad Request) status code is returned with the default response body.
+        
+        Not all the features of the OpenAPI v3 specification are supported by Proteus: for example, `oneOf`, `anyOf`, `allOf`, etc. are not supported and will be ignored.
+        Try it out to see if your OpenAPI v3 specification works with Proteus.
+        Check logs for more details if something goes wrong.
+        
+        Proteus server will be restarted after the new custom REST endpoints are created.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenApiSwaggerSource'
+      responses:
+        204:
+          description: The new custom REST endpoints have been successfully created.
+        400:
+          $ref: '#/components/responses/InvalidRequestBodyResponse'
+
+  /api/v1/proteus/admin/auth/credentials/basic:
+    get:
+      summary: Gets the list of the basic authentication credentials
+      operationId: getBasicAuthCredentials
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to get the list of the basic authentication credentials.
+        All of these credentials are available to be used for the protected resources.
+        See `/api/v1/proteus/auth/basic/resource` and its subpaths for more details.
+      responses:
+        200:
+          description: |
+            The list of the basic authentication credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BasicAuthCredentials'
+
+    post:
+      summary: Creates a new basic authentication credential
+      operationId: createBasicAuthCredential
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to create a new basic authentication credential.
+        The request body must be provided.
+        
+        Only `application/json` content type is supported.
+        If the content type is not provided or not supported, the 400 (Bad Request) status code is returned with the default response body.
+        
+        If the username is already used by another basic authentication credential, the previous one will be overwritten.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BasicAuthCredentialsInstance'
+      responses:
+        204:
+          description: The new basic authentication credential has been successfully created.
+        400:
+          $ref: '#/components/responses/InvalidRequestBodyResponse'
+
+    delete:
+      summary: Deletes all the basic authentication credentials
+      operationId: deleteAllBasicAuthCredentials
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to delete all the basic authentication credentials once they are no longer needed.
+      responses:
+        204:
+          description: All the basic authentication credentials have been successfully deleted.
+
+  /api/v1/proteus/admin/auth/credentials/basic/{username}:
+    delete:
+      summary: Deletes the basic authentication credential by its username
+      operationId: deleteBasicAuthCredential
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to delete the basic authentication credential by its username.
+        
+        If the basic authentication credential with this username does not exist, the 404 (Not Found) status code is returned with the default response body.
+      parameters:
+        - $ref: '#/components/parameters/BasicAuthCredentialUsernamePathParam'
+      responses:
+        204:
+          description: The basic authentication credential has been successfully deleted.
+        404:
+          $ref: '#/components/responses/BasicAuthCredentialNotFoundResponse'
+
+  /api/v1/proteus/admin/auth/credentials/apikey:
+    get:
+      summary: Gets the list of the API key authentication credentials
+      operationId: getApiKeyAuthCredentials
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to get the list of the API key authentication credentials.
+        All of these credentials are available to be used for the protected resources.
+        See `/api/v1/proteus/auth/apikey/resource` and its subpaths for more details.
+      responses:
+        200:
+          description: |
+            The list of the API key authentication credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyAuthCredentials'
+
+    post:
+      summary: Creates a new API key authentication credential
+      operationId: createApiKeyAuthCredential
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to create a new API key authentication credential.
+        The request body must be provided.
+        
+        Only `application/json` content type is supported.
+        If the content type is not provided or not supported, the 400 (Bad Request) status code is returned with the default response body.
+        
+        If the API key name is already used by another API key authentication credential, the previous one will be overwritten.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyAuthCredentialsInstance'
+      responses:
+        204:
+          description: The new API key authentication credential has been successfully created.
+        400:
+          $ref: '#/components/responses/InvalidRequestBodyResponse'
+
+    delete:
+      summary: Deletes all the API key authentication credentials
+      operationId: deleteAllApiKeyAuthCredentials
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to delete all the API key authentication credentials once they are no longer needed.
+      responses:
+        204:
+          description: All the API key authentication credentials have been successfully deleted.
+
+  /api/v1/proteus/admin/auth/credentials/apikey/{keyName}:
+    delete:
+      summary: Deletes the API key authentication credential by its key name
+      operationId: deleteApiKeyAuthCredential
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to delete the API key authentication credential by its key name.
+        
+        If the API key authentication credential with this key name does not exist, the 404 (Not Found) status code is returned with the default response body.
+      parameters:
+        - $ref: '#/components/parameters/ApiKeyNamePathParam'
+      responses:
+        204:
+          description: The API key authentication credential has been successfully deleted.
+        404:
+          $ref: '#/components/responses/ApiKeyAuthCredentialNotFoundResponse'
+
+  /api/v1/proteus/admin/restart:
+    put:
+      summary: Restarts the Proteus server
+      operationId: restartProteusServer
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to restart the Proteus server.
+      responses:
+        204:
+          description: The Proteus server has been successfully restarted.
+
+  /api/v1/proteus/admin/shutdown:
+    delete:
+      summary: Shuts down the Proteus server
+      operationId: shutdownProteusServer
+      tags:
+        - Admin
+      description: |
+        Use this endpoint to shut down the Proteus server.
+      responses:
+        204:
+          description: The Proteus server has been successfully shut down.
+
+  /api/v1/proteus/healthcheck:
+    get:
+      summary: Performs the health check of the Proteus server
+      operationId: performHealthCheck
+      tags:
+        - Health
+      description: |
+        Use this endpoint to perform the health check of the Proteus server.
+        If the server is healthy, the 200 (OK) status code is returned with the default response body.
+        If any other status code is returned, the server is not healthy.
+      responses:
+        200:
+          description: The Proteus server is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthcheckResponse'
+
+    /api/v1/proteus/openapi.yaml:
+      get:
+        summary: Gets the OpenAPI description of the Proteus server in the YAML format
+        operationId: getOpenApiDescription
+        tags:
+          - Docs
+        description: |
+          Use this endpoint to get the OpenAPI description of the Proteus server as a YAML file.
+        responses:
+          200:
+            description: The OpenAPI description of the Proteus server.
+            content:
+              application/octet-stream:
+                schema:
+                  type: string
+                  format: yaml
+
+    /api/v1/proteus/swagger-ui.html:
+      get:
+        summary: Gets the Swagger UI of the Proteus server
+        operationId: getSwaggerUi
+        tags:
+          - Docs
+        description: |
+          Use this endpoint to get the Swagger UI of the Proteus server.
+        responses:
+        200:
+          description: The Swagger UI of the Proteus server.
+          content:
+          text/html:
+            schema:
+              type: string
+              format: html
+
+  /{anyPath}:
+    # this path supports any HTTP method, GET is used as an example
+    get:
+      summary: Handles requests to any path that is not defined in the OpenAPI description and not defined in the custom REST endpoints
+      operationId: handleAnyPath
+      tags:
+        - Other
+      description: |
+        If the requested path is not defined in the OpenAPI description and not defined in the custom REST endpoints, this endpoint will be used.
+        GET HTTP method is used as an example, but any other HTTP method can be also used.
+        
+        If there are response hints provided, they will be used to tweak the response.
+        Otherwise, the 200 (OK) status code is returned with the default response body.
+        
+        The list of supported hints for this endpoint:
+        
+        - status code
+        - response body 
+        - response body base64
+        - response content type
+        - wait ms
+      parameters:
+        - $ref: '#/components/parameters/AnyPath'
+        # response hints:
+        - $ref: '#/components/parameters/ProteusStatusCodeQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyQueryParam'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64QueryParam'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeQueryParam'
+        - $ref: '#/components/parameters/ProteusWaitMsQueryParam'
+        - $ref: '#/components/parameters/ProteusStatusCodeHeader'
+        - $ref: '#/components/parameters/ProteusResponseBodyHeader'
+        - $ref: '#/components/parameters/ProteusResponseBodyBase64Header'
+        - $ref: '#/components/parameters/ProteusResponseContentTypeHeader'
+        - $ref: '#/components/parameters/ProteusWaitMsHeader'
+      responses:
+        200:
+          description: |
+            A default Proteus response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/200OkResponse'
+
+components:
+  parameters:
+
+    AnyPath:
+      name: anyPath
+      in: path
+      required: true
+      description: Specifies that any path can be used
+      schema:
+        type: string
+      example: "/api/v1/books"
+
+    ApiKeyNamePathParam:
+      name: keyName
+      in: path
+      required: true
+      description: The name of the API key authentication credential
+      schema:
+        type: string
+      example: "api_key"
+
+    AuthorizationHeader:
+      name: Authorization
+      in: header
+      required: true
+      description: Authentication header that can be used to provide the credentials
+      schema:
+        type: string
+      example:
+        "Basic dXNlcm5hbWU6cGFzc3dvcmQ="
+
+    BasicAuthCredentialUsernamePathParam:
+      name: username
+      in: path
+      required: true
+      description: The username of the basic authentication credential
+      schema:
+        type: string
+      example: "username"
+
+    HttpMethodPathParam:
+      name: httpMethod
+      in: path
+      required: true
+      description: The HTTP method to get the custom REST endpoint for
+      schema:
+        type: string
+      example: "GET"
+
+    HttpStatusPathParam:
+      name: status
+      in: path
+      required: true
+      description: The HTTP status code to get the response for
+      schema:
+        type: integer
+        format: int32
+        minimum: 100
+        maximum: 599
+      example: 200
+
+    ProteusApiKeyLocationHeader:
+      name: X-Proteus-Api-Key-Location
+      in: header
+      description: The location of the API key
+      schema:
+        type: string
+        enum:
+          - query
+          - header
+      example: "header"
+
+    ProteusApiKeyLocationQueryParam:
+      name: proteus_api_key_location
+      in: query
+      description: The location of the API key
+      schema:
+        type: string
+        enum:
+          - query
+          - header
+      example: "header"
+
+    ProteusApiKeyNameHeader:
+      name: X-Proteus-Api-Key-Name
+      in: header
+      description: The name of the API key
+      schema:
+        type: string
+      example: "api_key"
+
+    ProteusApiKeyNameQueryParam:
+      name: proteus_api_key_name
+      in: query
+      description: The name of the API key
+      schema:
+        type: string
+      example: "api_key"
+
+    ProteusApiKeyValueFormatHeader:
+      name: X-Proteus-Api-Key-Value-Format
+      in: header
+      description: The format of the API key value
+      schema:
+        type: string
+        enum:
+          - plain
+          - base64
+      example: "plain"
+
+    ProteusApiKeyValueFormatQueryParam:
+      name: proteus_api_key_value_format
+      in: query
+      description: The format of the API key value
+      schema:
+        type: string
+        enum:
+          - plain
+          - base64
+      example: "plain"
+
+    ProteusApiKeyValueParserRegexpBase64Header:
+      name: X-Proteus-Api-Key-Value-Parser-Regexp-Base64
+      in: header
+      description: The regexp pattern to parse the API key value
+      schema:
+        type: string
+      # Base64-decoded "ApiKey: (.+)"
+      example: "QXBpS2V5OiAoLisp"
+
+    ProteusApiKeyValueParserRegexpBase64QueryParam:
+      name: proteus_api_key_value_parser_regexp_base64
+      in: query
+      description: The regexp pattern to parse the API key value
+      schema:
+        type: string
+      # Base64-decoded "ApiKey: (.+)"
+      example: "QXBpS2V5OiAoLisp"
+
+    ProteusRedirectLocationHeader:
+      name: X-Proteus-Redirect-Location
+      in: header
+      description: The redirect location to use if the status code is either 301, 302, 303, 307 or 308
+      schema:
+        type: string
+      example: "https://example.com"
+
+    ProteusRedirectLocationQueryParam:
+      name: proteus_redirect_location
+      in: query
+      description: The redirect location to use if the status code is either 301, 302, 303, 307 or 308
+      schema:
+        type: string
+      example: "https://example.com"
+
+    ProteusResponseBodyHeader:
+      name: X-Proteus-Response-Body
+      in: header
+      description: The response body to be returned
+      schema:
+        type: string
+      example: "{\"message\": \"Hello, World!\"}"
+
+    ProteusResponseBodyQueryParam:
+      name: proteus_response_body
+      in: query
+      description: The response body to be returned
+      schema:
+        type: string
+      example: "{\"message\": \"Hello, World!\"}"
+
+    ProteusResponseBodyBase64Header:
+      name: X-Proteus-Response-Body-Base64
+      in: header
+      description: The response body to be returned as a base64 encoded string
+      schema:
+        type: string
+      example: "eyJtZXNzYWdlIjogIkhlbGxvLCBXb3JsZCEifQ=="
+
+    ProteusResponseBodyBase64QueryParam:
+      name: proteus_response_body_base64
+      in: query
+      description: The response body to be returned as a base64 encoded string
+      schema:
+        type: string
+      example: "eyJtZXNzYWdlIjogIkhlbGxvLCBXb3JsZCEifQ=="
+
+    ProteusResponseContentTypeHeader:
+      name: X-Proteus-Response-Content-Type
+      in: header
+      description: The response content type to be returned as the `Content-Type` header
+      schema:
+        type: string
+      example: "application/json"
+
+    ProteusResponseContentTypeQueryParam:
+      name: proteus_response_content_type
+      in: query
+      description: The response content type to be returned as the `Content-Type` header
+      schema:
+        type: string
+      example: "application/json"
+
+    ProteusStatusCodeHeader:
+      name: X-Proteus-Status-Code
+      in: header
+      description: The HTTP status code to return
+      schema:
+        type: integer
+        format: int32
+      example: 200
+
+    ProteusStatusCodeQueryParam:
+      name: proteus_status_code
+      in: query
+      description: The HTTP status code to return
+      schema:
+        type: integer
+        format: int32
+      example: 200
+
+    ProteusWaitMsHeader:
+      name: X-Proteus-Wait-Ms
+      in: header
+      description: The number of milliseconds to wait before sending the response
+      schema:
+        type: integer
+        format: int32
+      example: 5000
+
+    ProteusWaitMsQueryParam:
+      name: proteus_wait_ms
+      in: query
+      description: The number of milliseconds to wait before sending the response
+      schema:
+        type: integer
+        format: int32
+      example: 5000
+
+  schemas:
+
+    AnyRequest:
+      type: object
+      description: The model to specify that any request can be provided
+      additionalProperties: true
+
+    AnyResponse:
+      type: object
+      description: The model to specify that any response can be returned
+      additionalProperties: true
+
+    ApiKeyAuthCredentials:
+      type: array
+      items:
+        $ref: '#/components/schemas/ApiKeyAuthCredentialsInstance'
+      description: The list of the API key authentication credentials
+      example: [
+        {
+          "keyName": "api_key",
+          "keyValue": "123e4567-e89b-12d3-a456-426614174000"
+        }
+      ]
+
+    ApiKeyAuthCredentialsInstance:
+      type: object
+      properties:
+        keyName:
+          type: string
+          description: The name of the API key
+          example: "api_key"
+        keyValue:
+          type: string
+          description: The value of the API key
+          example: "123e4567-e89b-12d3-a456-426614174000"
+      example: {
+        "keyName": "api_key",
+        "keyValue": "123e4567-e89b-12d3-a456-426614174000"
+      }
+
+    BasicAuthCredentials:
+      type: array
+      items:
+        $ref: '#/components/schemas/BasicAuthCredentialsInstance'
+      description: The list of the basic authentication credentials
+      example: [
+        {
+          "username": "username",
+          "password": "password"
+        }
+      ]
+
+    BasicAuthCredentialsInstance:
+      type: object
+      properties:
+        username:
+          type: string
+          description: The username of the basic authentication credential
+          example: "username"
+        password:
+          type: string
+          description: The password of the basic authentication credential
+          example: "password"
+      example: {
+        "username": "username",
+        "password": "password"
+      }
+
+    DefaultResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: The response message
+          example: "OK"
+      example: {
+        "message": "OK"
+      }
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: The error message
+          example: "The request is invalid"
+        code:
+          type: string
+          description: The error code
+          example: "bad_request.default"
+      example: {
+        "message": "The request is invalid",
+        "code": "bad_request.default"
+      }
+
+    HealthcheckResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          description: The health status of the Proteus server
+          example: "OK"
+      example: {
+        "status": "OK"
+      }
+
+    OpenApiSwaggerSource:
+      type: object
+      properties:
+        pathToFile:
+          type: string
+          description: The path to the Swagger v2 specification file on your local machine
+          example: "/path/to/swagger.json"
+        url:
+          type: string
+          description: The URL to the Swagger v2 specification
+          example: "https://example.com/swagger.json"
+        content:
+          type: string
+          description: The Swagger v2 specification content
+          example: "{\"swagger\": \"2.0\", \"info\": {\"title\": \"Swagger Petstore\", \"version\": \"1.0.0\"}, \"paths\": {\"/pets\": {\"get\": {\"responses\": {\"200\": {\"description\": \"A list of pets.\"}}}}}"
+      example: {
+        "pathToFile": "/path/to/swagger.json"
+      }
+
+    ProtectedResourceResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: The protected resource message
+          example: "Welcome: you are in"
+      example: {
+        "message": "Welcome: you are in"
+      }
+
+    RestEndpoint:
+      type: object
+      description: The model to specify the REST endpoint
+      properties:
+        path:
+          type: string
+          description: The path of the REST endpoint
+          example: "/api/v1/books"
+        method:
+          type: string
+          description: The HTTP method of the REST endpoint
+          example: "GET"
+        description:
+          type: string
+          description: The description of the REST endpoint
+          example: "Returns all the books"
+        defaultResponseStatusCode:
+          type: integer
+          format: int32
+          description: |
+            The default response status code of the REST endpoint.
+            This code is used if no status code is provided via the response hints.
+          example: 200
+        responses:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/RestEndpointResponseStructure'
+          description: |
+            The key-value pairs of the response status codes to their response structure (bodies, headers, cookies).
+      example: {
+        "path": "/api/v1/books",
+        "method": "GET",
+        "description": "Returns all the books",
+        "defaultResponseStatusCode": 200,
+        "responses": {
+          "200": {
+            "body": [
+              {
+                "contentType": "application/json",
+                "asString": "{\"name\": \"Harry Potter\"}"
+              }
+            ],
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "X-Request-ID",
+                "value": "123e4567-e89b-12d3-a456-426614174000"
+              }
+            ],
+            "cookies": [
+              {
+                "name": "session",
+                "value": "123e4567-e89b-12d3-a456-426614174000"
+              }
+            ]
+          },
+          "400": {
+            "body": [
+              {
+                "contentType": "application/json",
+                "asString": "{\"message\": \"Bad Request\"}"
+              }
+            ],
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      }
+
+    RestEndpointCookie:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The name of the cookie
+          example: "session"
+        value:
+          type: string
+          description: The value of the cookie
+          example: "123e4567-e89b-12d3-a456-426614174000"
+
+    RestEndpointHeader:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The name of the header
+          example: "Content-Type"
+        values:
+          type: array
+          items:
+            type: string
+          description: The values of the header
+          example: [ "application/json", "application/xml" ]
+
+    RestEndpointResponseBody:
+      type: object
+      properties:
+        contentType:
+          type: string
+          description: The content type of the response body
+          example: "application/json"
+        asString:
+          type: string
+          description: The response body as a string
+          example: "{\"name\": \"Harry Potter\"}"
+        asBase64:
+          type: string
+          description: The response body as a base64 encoded string
+          example: "eyJtZXNzYWdlIjogIkhhcnJ5IFBvdHRlciJ9"
+
+    RestEndpointResponseStructure:
+      type: object
+      properties:
+        body:
+          type: array
+          items:
+            $ref: '#/components/schemas/RestEndpointResponseBody'
+          description: The response body structure
+        headers:
+          type: array
+          items:
+            $ref: '#/components/schemas/RestEndpointHeader'
+          description: The response headers structure
+        cookies:
+          type: array
+          items:
+            $ref: '#/components/schemas/RestEndpointCookie'
+          description: The response cookies structure
+      example: {
+        "body": [
+          {
+            "contentType": "application/json",
+            "asString": "{\"name\": \"Harry Potter\"}"
+          }
+        ],
+        "headers": [
+          {
+            "name": "Content-Type",
+            "values": [ "application/json", "application/xml" ]
+          }
+        ],
+        "cookies": [
+          {
+            "name": "session",
+            "value": "123e4567-e89b-12d3-a456-426614174000"
+          }
+        ]
+      }
+
+    RestEndpoints:
+      type: array
+      items:
+        $ref: '#/components/schemas/RestEndpoint'
+      description: The list of the custom REST endpoints created via the Proteus admin API
+      example: [
+        {
+          "path": "/api/v1/books",
+          "method": "GET",
+          "description": "Returns all the books",
+          "defaultResponseStatusCode": 200,
+          "responses": {
+            "200": {
+              "body": [
+                {
+                  "contentType": "application/json",
+                  "asString": "{\"name\": \"Harry Potter\"}"
+                }
+              ],
+              "headers": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "name": "X-Request-ID",
+                  "value": "123e4567-e89b-12d3-a456-426614174000"
+                }
+              ],
+              "cookies": [
+                {
+                  "name": "session",
+                  "value": "123e4567-e89b-12d3-a456-426614174000"
+                }
+              ]
+            },
+            "400": {
+              "body": [
+                {
+                  "contentType": "application/json",
+                  "asString": "{\"message\": \"Bad Request\"}"
+                }
+              ],
+              "headers": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            }
+          }
+        }
+      ]
+
+    SmartCreatedResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The ID of the newly created smart entity
+          example: "123e4567-e89b-12d3-a456-426614174000"
+      example: {
+        "id": "123e4567-e89b-12d3-a456-426614174000"
+      }
+
+  responses:
+
+    101ContinueResponse:
+      description: Default response for the 101 (Continue) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Continue"
+      }
+
+    101SwitchingProtocolsResponse:
+      description: Default response for the 102 (Switching Protocols) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Switching Protocols"
+      }
+
+    102ProcessingResponse:
+      description: Default response for the 102 (Processing) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Processing"
+      }
+
+    103EarlyHintsResponse:
+      description: Default response for the 103 (Early Hints) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Early Hints"
+      }
+
+    200OkResponse:
+      description: Default response for the 200 (OK) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "OK"
+      }
+
+    201CreatedResponse:
+      description: Default response for the 201 (Created) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Created"
+      }
+
+    202AcceptedResponse:
+      description: Default response for the 202 (Accepted) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Accepted"
+      }
+
+    203NonAuthoritativeInformationResponse:
+      description: Default response for the 203 (Non-Authoritative Information) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Non-Authoritative Information"
+      }
+
+    205ResetContentResponse:
+      description: Default response for the 205 (Reset Content) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Reset Content"
+      }
+
+    206PartialContentResponse:
+      description: Default response for the 206 (Partial Content) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Partial Content"
+      }
+
+    207MultiStatusResponse:
+      description: Default response for the 207 (Multi-Status) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Multi-Status"
+      }
+
+    208AlreadyReportedResponse:
+      description: Default response for the 208 (Already Reported) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Already Reported"
+      }
+
+    226IAmUsedResponse:
+      description: Default response for the 226 (IM Used) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "IM Used"
+      }
+
+    300MultipleChoicesResponse:
+      description: Default response for the 300 (Multiple Choices) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Multiple Choices"
+      }
+
+    301MovedPermanentlyResponse:
+      description: Default response for the 301 (Moved Permanently) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Moved Permanently"
+      }
+
+    302FoundResponse:
+      description: Default response for the 302 (Found) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Found"
+      }
+
+    303SeeOtherResponse:
+      description: Default response for the 303 (See Other) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "See Other"
+      }
+
+    304NotModifiedResponse:
+      description: Default response for the 304 (Not Modified) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Not Modified"
+      }
+
+    305UseProxyResponse:
+      description: Default response for the 305 (Use Proxy) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Use Proxy"
+      }
+
+    306SwitchProxyResponse:
+      description: Default response for the 306 (Switch Proxy) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Switch Proxy"
+      }
+
+    307TemporaryRedirectResponse:
+      description: Default response for the 307 (Temporary Redirect) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Temporary Redirect"
+      }
+
+    308PermanentRedirectResponse:
+      description: Default response for the 308 (Permanent Redirect) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/DefaultResponse'
+      example: {
+        "message": "Permanent Redirect"
+      }
+
+    400BadRequestResponse:
+      description: Default response for the 400 (Bad Request) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Bad Request",
+        "code": "bad_request.default"
+      }
+
+    401UnauthorizedResponse:
+      description: Default response for the 401 (Unauthorized) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Unauthorized",
+        "code": "unauthorized.default"
+      }
+
+    402PaymentRequiredResponse:
+      description: Default response for the 402 (Payment Required) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Payment Required",
+        "code": "payment_required.default"
+      }
+
+    403ForbiddenResponse:
+      description: Default response for the 403 (Forbidden) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Forbidden",
+        "code": "forbidden.default"
+      }
+
+    404NotFoundResponse:
+      description: Default response for the 404 (Not Found) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Not Found",
+        "code": "not_found.default"
+      }
+
+    405MethodNotAllowedResponse:
+      description: Default response for the 405 (Method Not Allowed) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Method Not Allowed",
+        "code": "method_not_allowed.default"
+      }
+
+    406NotAcceptableResponse:
+      description: Default response for the 406 (Not Acceptable) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Not Acceptable",
+        "code": "not_acceptable.default"
+      }
+
+    407ProxyAuthenticationRequiredResponse:
+      description: Default response for the 407 (Proxy Authentication Required) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Proxy Authentication Required",
+        "code": "proxy_authentication_required.default"
+      }
+
+    408RequestTimeoutResponse:
+      description: Default response for the 408 (Request Timeout) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Request Timeout",
+        "code": "request_timeout.default"
+      }
+
+    409ConflictResponse:
+      description: Default response for the 409 (Conflict) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Conflict",
+        "code": "conflict.default"
+      }
+
+    410GoneResponse:
+      description: Default response for the 410 (Gone) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Gone",
+        "code": "gone.default"
+      }
+
+    411LengthRequiredResponse:
+      description: Default response for the 411 (Length Required) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Length Required",
+        "code": "length_required.default"
+      }
+
+    412PreconditionFailedResponse:
+      description: Default response for the 412 (Precondition Failed) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Precondition Failed",
+        "code": "precondition_failed.default"
+      }
+
+    413RequestEntityTooLargeResponse:
+      description: Default response for the 413 (Request Entity Too Large) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Request Entity Too Large",
+        "code": "request_entity_too_large.default"
+      }
+
+    414RequestURITooLongResponse:
+      description: Default response for the 414 (Request-URI Too Long) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Request-URI Too Long",
+        "code": "request_uri_too_long.default"
+      }
+
+    415UnsupportedMediaTypeResponse:
+      description: Default response for the 415 (Unsupported Media Type) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Unsupported Media Type",
+        "code": "unsupported_media_type.default"
+      }
+
+    416RequestedRangeNotSatisfiableResponse:
+      description: Default response for the 416 (Requested Range Not Satisfiable) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Requested Range Not Satisfiable",
+        "code": "requested_range_not_satisfiable.default"
+      }
+
+    417ExpectationFailedResponse:
+      description: Default response for the 417 (Expectation Failed) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Expectation Failed",
+        "code": "expectation_failed.default"
+      }
+
+    418ImATeapotResponse:
+      description: Default response for the 418 (I'm a teapot) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "I'm a teapot",
+        "code": "im_a_teapot.default"
+      }
+
+    421MisdirectedRequestResponse:
+      description: Default response for the 421 (Misdirected Request) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Misdirected Request",
+        "code": "misdirected_request.default"
+      }
+
+    422UnprocessableEntityResponse:
+      description: Default response for the 422 (Unprocessable Entity) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Unprocessable Entity",
+        "code": "unprocessable_entity.default"
+      }
+
+    423LockedResponse:
+      description: Default response for the 423 (Locked) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Locked",
+        "code": "locked.default"
+      }
+
+    424FailedDependencyResponse:
+      description: Default response for the 424 (Failed Dependency) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Failed Dependency",
+        "code": "failed_dependency.default"
+      }
+
+    425TooEarlyResponse:
+      description: Default response for the 425 (Too Early) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+          $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Too Early",
+        "code": "too_early.default"
+      }
+
+    426UpgradeRequiredResponse:
+      description: Default response for the 426 (Upgrade Required) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Upgrade Required",
+        "code": "upgrade_required.default"
+      }
+
+    428PreconditionRequiredResponse:
+      description: Default response for the 428 (Precondition Required) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Precondition Required",
+        "code": "precondition_required.default"
+      }
+
+    429TooManyRequestsResponse:
+      description: Default response for the 429 (Too Many Requests) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Too Many Requests",
+        "code": "too_many_requests.default"
+      }
+
+    431RequestHeaderFieldsTooLargeResponse:
+      description: Default response for the 431 (Request Header Fields Too Large) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Request Header Fields Too Large",
+        "code": "request_header_fields_too_large.default"
+      }
+
+    451UnavailableForLegalReasonsResponse:
+      description: Default response for the 451 (Unavailable For Legal Reasons) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Unavailable For Legal Reasons",
+        "code": "unavailable_for_legal_reasons.default"
+      }
+
+    500InternalServerErrorResponse:
+      description: Default response for the 500 (Internal Server Error) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Internal Server Error",
+        "code": "internal_server_error.default"
+      }
+
+    501NotImplementedResponse:
+      description: Default response for the 501 (Not Implemented) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Not Implemented",
+        "code": "not_implemented.default"
+      }
+
+    502BadGatewayResponse:
+      description: Default response for the 502 (Bad Gateway) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Bad Gateway",
+        "code": "bad_gateway.default"
+      }
+
+    503ServiceUnavailableResponse:
+      description: Default response for the 503 (Service Unavailable) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Service Unavailable",
+        "code": "service_unavailable.default"
+      }
+
+    504GatewayTimeoutResponse:
+      description: Default response for the 504 (Gateway Timeout) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Gateway Timeout",
+        "code": "gateway_timeout.default"
+      }
+
+    505HTTPVersionNotSupportedResponse:
+      description: Default response for the 505 (HTTP Version Not Supported) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "HTTP Version Not Supported",
+        "code": "http_version_not_supported.default"
+      }
+
+    506VariantAlsoNegotiatesResponse:
+      description: Default response for the 506 (Variant Also Negotiates) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Variant Also Negotiates",
+        "code": "variant_also_negotiates.default"
+      }
+
+    507InsufficientStorageResponse:
+      description: Default response for the 507 (Insufficient Storage) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Insufficient Storage",
+        "code": "insufficient_storage.default"
+      }
+
+    508LoopDetectedResponse:
+      description: Default response for the 508 (Loop Detected) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Loop Detected",
+        "code": "loop_detected.default"
+      }
+
+    510NotExtendedResponse:
+      description: Default response for the 510 (Not Extended) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Not Extended",
+        "code": "not_extended.default"
+      }
+
+    511NetworkAuthenticationRequiredResponse:
+      description: Default response for the 511 (Network Authentication Required) status code
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "Network Authentication Required",
+        "code": "network_authentication_required.default"
+      }
+
+    ApiKeyAuthCredentialNotFoundResponse:
+      description: The response for the API key authentication credential not found
+      content:
+        application/json:
+        schema:
+          $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "proteus: api key auth credentials not found: [some-api-key]",
+        "code": "proteus.not_found.api_key_auth_creds"
+      }
+
+    BasicAuthCredentialNotFoundResponse:
+      description: The response for the basic authentication credential not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "proteus: basic auth credentials not found: [some-username]",
+        "code": "proteus.not_found.basic_auth_creds"
+      }
+
+    InvalidRequestBodyResponse:
+      description: The response for the invalid request body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "proteus: invalid request body",
+        "code": "proteus.bad_request.request_body"
+      }
+
+    InvalidRestEndpointPathResponse:
+      description: The response for the invalid REST endpoint path
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "proteus: invalid rest endpoint path: [/api/v1/proteus/admin/rest/endpoints/GET/] - it must contain be [/api/v1/proteus/admin/rest/endpoints/{method}/{endpointPath}]: either [method] or [endpointPath] is missing",
+        "code": "proteus.bad_request.invalid_rest_endpoint_request_path"
+      }
+
+    ProteusNotFoundResponse:
+      description: The response for the Proteus not found error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "proteus: not found",
+        "code": "proteus.not_found"
+      }
+
+    SmartEntityNotFoundResponse:
+      description: Smart entity not found by the provided ID
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+      example: {
+        "message": "proteus: smart domain path not found: /books/12345678-1234-1234-1234-123456789012",
+        "code": "proteus.not_found.smart_path"
+      }

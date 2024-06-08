@@ -19,8 +19,8 @@ const (
 	// Proteus API error codes
 	ErrorCodeInvalidStatusCode          = "proteus.bad_request.status_code"
 	ErrorCodeInvalidRequestBody         = "proteus.bad_request.request_body"
+	ErrorCodeInvalidRestEndpointPath    = "proteus.bad_request.invalid_rest_endpoint_request_path"
 	ErrorCodeInvalidSmartRequestPath    = "proteus.not_found.invalid_smart_request_path"
-	ErrorCodeInvalidRestEndpointPath    = "proteus.not_found.invalid_rest_endpoint_request_path"
 	ErrorCodeNotFoundSmartPath          = "proteus.not_found.smart_path"
 	ErrorCodeNotFoundRestEndpointPath   = "proteus.not_found.rest_endpoint_path"
 	ErrorCodeNotFoundBasicAuthCreds     = "proteus.not_found.basic_auth_creds"
@@ -71,7 +71,6 @@ const (
 	DefaultErrorCodeTpl = "%d.default"
 
 	ProteusReservedApiPath               = "/api/v1/proteus"
-	ProteusHealthcheckPath               = "/healthcheck"
 	SmartEndpointPath                    = "/api/v1/proteus/smart"
 	SmartEndpointPathWithoutLeadingSlash = "api/v1/proteus/smart"
 	RestEndpointPath                     = "/api/v1/proteus/admin/rest/endpoints"
