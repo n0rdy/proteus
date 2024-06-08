@@ -17,6 +17,6 @@ var openApiSpecContent []byte
 var swaggerUiFs embed.FS
 
 func main() {
-	utils.InitExamples(configFileExampleContent, openApiSpecContent, swaggerUiFs)
+	utils.InitEmbeds(configFileExampleContent, openApiSpecContent, swaggerUiFs)
 	cmd.Execute()
 }

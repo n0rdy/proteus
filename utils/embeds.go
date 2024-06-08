@@ -8,7 +8,7 @@ var (
 	SwaggerUiFs              embed.FS
 )
 
-func InitExamples(configFileExampleContent []byte, openApiSpecContent []byte, swaggerUiFs embed.FS) {
+func InitEmbeds(configFileExampleContent []byte, openApiSpecContent []byte, swaggerUiFs embed.FS) {
 	ConfigFileExampleContent = configFileExampleContent
 	OpenApiSpecContent = openApiSpecContent
 	SwaggerUiFs = swaggerUiFs
