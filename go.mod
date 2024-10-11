@@ -8,7 +8,7 @@ require (
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/google/uuid v1.6.0
 	github.com/rs/cors v1.11.0
-	github.com/spf13/cobra v1.8.0
+	github.com/spf13/cobra v1.8.1
 	go.etcd.io/bbolt v1.3.10
 	gopkg.in/yaml.v3 v3.0.1
 )
