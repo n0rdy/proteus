@@ -5,7 +5,7 @@ go 1.22
 require (
 	github.com/clbanning/mxj/v2 v2.7.0
 	github.com/getkin/kin-openapi v0.128.0
-	github.com/go-chi/chi/v5 v5.1.0
+	github.com/go-chi/chi/v5 v5.2.0
 	github.com/google/uuid v1.6.0
 	github.com/rs/cors v1.11.1
 	github.com/spf13/cobra v1.8.1
